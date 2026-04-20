@@ -424,11 +424,18 @@ st.markdown('<div class="section-box">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">개시전</div>', unsafe_allow_html=True)
 st.markdown('<div class="subsection-title">기초잔고</div>', unsafe_allow_html=True)
 pre1, pre2, pre3 = st.columns(3)
-pre1.metric("전일자 현금", won(st.session_state.current_cash))
-pre2.metric("전일자 총자산", won(st.session_state.order_reference_value))
-pre3.metric("이번 DAY 기본 비중", str({k: int(v) for k, v in st.session_state.last_weights.items()}))
 if st.session_state.day_no == 1:
+    # DAY1 실행 전: 초기값 표시
+    pre1.metric("전일자 현금", won(INITIAL_MONEY))
+    pre2.metric("전일자 총자산", won(INITIAL_MONEY))
+    pre3.metric("이번 DAY 기본 비중", str({k: 0 for k in STRATEGIES}))
     st.caption("DAY0 개시전 상태: 현금 1억원, 보유 종목 없음")
+else:
+    # DAY2 이후: 전일(history[-1]) 값 표시
+    prev = st.session_state.history[-1]
+    pre1.metric("전일자 현금", won(prev["cash_after_trade"]))
+    pre2.metric("전일자 총자산", won(prev["ap_after"]))
+    pre3.metric("이번 DAY 기본 비중", str({k: int(v) for k, v in prev["weights"].items()}))
 
 qty_df = pd.DataFrame(
     [
@@ -565,11 +572,12 @@ if st.session_state.history:
         ]
     )
     chart_long = chart_source.melt("DAY", var_name="구분", value_name="누적수익률(%)")
+    day_order = chart_source["DAY"].tolist()
     line_chart = (
         alt.Chart(chart_long)
         .mark_line(point=True)
         .encode(
-            x=alt.X("DAY:N", title="DAY"),
+            x=alt.X("DAY:N", title="DAY", sort=day_order),
             y=alt.Y("누적수익률(%):Q", title="누적수익률(%)"),
             color=alt.Color("구분:N", title="구분"),
             tooltip=["DAY", "구분", alt.Tooltip("누적수익률(%):Q", format=".2f")],
