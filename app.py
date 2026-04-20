@@ -63,12 +63,23 @@ st.markdown(
         }
     }
     .section-box {
-        border: 1px solid #d1d5db;
+        border: 3px solid #4b5563;
         border-radius: 16px;
         padding: 16px 14px 8px 14px;
         margin-top: 12px;
         margin-bottom: 18px;
         background: #ffffff;
+    }
+    div[data-testid="stNumberInput"] input {
+        background-color: #ecfccb !important;
+        border: 2px solid #84cc16 !important;
+        font-weight: 700;
+        color: #1a2e05 !important;
+    }
+    div[data-testid="stNumberInput"] input:focus {
+        background-color: #d9f99d !important;
+        border: 2px solid #65a30d !important;
+        box-shadow: 0 0 0 3px rgba(132,204,22,0.3) !important;
     }
     .section-title {
         font-size: 1.45rem;
@@ -326,7 +337,7 @@ if "history" not in st.session_state:
 
 st.title("멀티전략 DAY 시뮬레이터")
 st.caption("전략 비중 입력 → DAY 실행 → 주문표 / 가격변동 / AP 잔고 / 전략 분해")
-st.markdown(f"### 현재 개시전 기준일: DAY{st.session_state.day_no - 1}")
+st.markdown(f"### 현재 기준일: DAY{st.session_state.day_no - 1}")
 
 with st.sidebar:
     st.subheader("설정")
@@ -421,11 +432,10 @@ if st.button("DAY 실행", disabled=total > 100, use_container_width=True):
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="section-box">', unsafe_allow_html=True)
-st.markdown('<div class="section-title">개시전</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">통합MP</div>', unsafe_allow_html=True)
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
-    st.markdown('<div class="subsection-title">통합MP</div>', unsafe_allow_html=True)
     # 보유비중: 전일 종가 기준 각 종목 평가금액 / 총자산
     ap_total = latest["ap_after"]
     mp_rows = []
@@ -437,7 +447,6 @@ if st.session_state.history:
     mp_df = pd.DataFrame(mp_rows)
     st.dataframe(mp_df, use_container_width=True, hide_index=True)
 else:
-    st.markdown('<div class="subsection-title">통합MP</div>', unsafe_allow_html=True)
     st.info("DAY 실행 후 통합MP가 표시됩니다.")
 
 st.markdown('</div>', unsafe_allow_html=True)
@@ -501,11 +510,11 @@ if st.session_state.history:
     st.dataframe(ap_df, use_container_width=True, hide_index=True)
     x1, x2, x3 = st.columns(3)
     x4, x5, x6 = st.columns(3)
-    x1.metric("현재 현금", won(latest["cash_after_trade"]))
-    x2.metric("SUM", won(latest["ap_after"]))
-    x3.metric("AP 일간 손익", won(latest["ap_pnl"]))
-    x4.metric("AP 일간 수익률", pct(latest["ap_ret"]))
-    x5.metric("AP 누적 손익", won(latest["ap_after"] - INITIAL_MONEY))
+    x1.metric("평가금액(SUM)", won(latest["ap_after"]))
+    x2.metric("AP 일간 손익", won(latest["ap_pnl"]))
+    x3.metric("AP 누적 손익", won(latest["ap_after"] - INITIAL_MONEY))
+    x4.metric("현금", won(latest["cash_after_trade"]))
+    x5.metric("AP 일간 수익률", pct(latest["ap_ret"]))
     x6.metric("AP 누적 수익률", pct(latest["ap_cum"]))
 
     st.markdown('<div class="subsection-title">AP 잔고 전략별 분해</div>', unsafe_allow_html=True)
