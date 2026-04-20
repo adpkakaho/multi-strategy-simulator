@@ -1,7 +1,6 @@
 import random
 import streamlit as st
 import pandas as pd
-import altair as alt
 
 st.set_page_config(page_title="멀티전략 DAY 시뮬레이터", layout="wide")
 
@@ -97,6 +96,10 @@ def won(x: float) -> str:
 
 def fmt_int(x):
     return f"{int(round(x)):,}"
+
+
+def fmt_float(x, d=2):
+    return f"{x:,.{d}f}"
 
 
 def pct(x):
@@ -294,7 +297,7 @@ if "history" not in st.session_state:
     reset_simulation()
 
 st.title("멀티전략 DAY 시뮬레이터")
-st.caption("전략 비중 입력 → DAY 실행 → 주문표 / 가격변동 / AP 잔고 / 전략 분해 / 누적 성과")
+st.caption("전략 비중 입력 → DAY 실행 → 주문표 / 가격변동 / AP 잔고 / 전략 분해")
 
 with st.sidebar:
     st.subheader("설정")
@@ -352,16 +355,22 @@ if st.button("DAY 실행", disabled=not can_run, use_container_width=True):
             result["strategy_theoretical_ret"][strategy_name],
         )
 
-        if st.session_state.strategy_tracking_active[strategy_name] and weights[strategy_name] == 0:
+        if weights[strategy_name] == 0:
             st.session_state.strategy_tracking_active[strategy_name] = False
             st.session_state.strategy_est_cum[strategy_name] = None
-            continue
-
-        if st.session_state.strategy_tracking_active[strategy_name]:
-            st.session_state.strategy_est_cum[strategy_name] = accumulate_return(
-                st.session_state.strategy_est_cum[strategy_name],
-                result["strategy_est_ret"][strategy_name],
-            )
+        else:
+            if not st.session_state.strategy_tracking_active[strategy_name]:
+                st.session_state.strategy_tracking_active[strategy_name] = True
+                st.session_state.strategy_est_cum[strategy_name] = result["strategy_est_ret"][strategy_name]
+            else:
+                prev_est = st.session_state.strategy_est_cum[strategy_name]
+                if prev_est is None:
+                    st.session_state.strategy_est_cum[strategy_name] = result["strategy_est_ret"][strategy_name]
+                else:
+                    st.session_state.strategy_est_cum[strategy_name] = accumulate_return(
+                        prev_est,
+                        result["strategy_est_ret"][strategy_name],
+                    )
 
     st.session_state.ap_cum = accumulate_return(st.session_state.ap_cum, result["ap_ret"])
     st.session_state.ap_cum_pnl += result["ap_pnl"]
@@ -384,13 +393,6 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="section-box">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">개시전</div>', unsafe_allow_html=True)
-
-st.subheader("전략별 현재 누적 현황")
-cum_cols = st.columns(len(STRATEGIES))
-for idx, name in enumerate(STRATEGIES):
-    with cum_cols[idx]:
-        st.metric(f"Strategy {name} 이론 누적", pct(st.session_state.strategy_theoretical_cum[name]))
-        st.metric(f"Strategy {name} 추정 누적", pct(st.session_state.strategy_est_cum[name]))
 
 st.subheader("기초잔고")
 pre1, pre2, pre3 = st.columns(3)
@@ -476,7 +478,7 @@ if st.session_state.history:
     x2.metric("SUM", won(latest["ap_after"]))
     x3.metric("AP 일간 손익", won(latest["ap_pnl"]))
     x4.metric("AP 일간 수익률", pct(latest["ap_ret"]))
-    x5.metric("AP 누적 손익", won(latest["ap_cum_pnl"]))
+    x5.metric("AP 누적 손익", won(latest["ap_after"] - INITIAL_MONEY))
     x6.metric("AP 누적 수익률", pct(latest["ap_cum"]))
 
     st.subheader("AP 잔고 전략별 분해")
@@ -497,21 +499,6 @@ if st.session_state.history:
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.divider()
-    st.subheader(f"{latest['day_name']} 성과 그래프")
-    chart_df = pd.DataFrame([
-        {
-            "DAY": item["day_name"],
-            "AP 누적수익률": (item["ap_cum"] or 0) * 100,
-            **{f"{name} 이론 누적": ((item["strategy_theoretical_cum"][name] or 0) * 100) for name in STRATEGIES},
-            **{f"{name} 추정 누적": ((item["strategy_est_cum"][name] or 0) * 100) for name in STRATEGIES},
-        }
-        for item in st.session_state.history
-    ])
-    long_df = chart_df.melt("DAY", var_name="구분", value_name="누적수익률(%)")
-    line = alt.Chart(long_df).mark_line(point=True).encode(
-        x="DAY:N", y="누적수익률(%):Q", color="구분:N"
-    ).properties(height=320)
-    st.altair_chart(line, use_container_width=True)
 
     st.subheader("DAY 히스토리")
     hist_df = pd.DataFrame([
