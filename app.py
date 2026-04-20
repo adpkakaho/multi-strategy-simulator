@@ -268,15 +268,23 @@ def run_day(day_name: str, weights: dict[str, int], base_prices: dict[str, int],
     ending_qty: dict[str, int] = dict(starting_qty)
     cash_after_trade = starting_cash
 
+    # 주문 기준금액: 체결가 기준 당일 총자산 (현금 + 보유주식 × 체결가)
+    # 전일 종가가 아닌 당일 체결가 기준으로 재계산해야 현금 누적 방지
+    order_base = starting_cash + sum(
+        starting_qty.get(s, 0) * exec_prices[s] for s in exec_prices
+    )
+
     for stock, weight in mp.items():
-        target_amount = int(order_reference_value * weight)
+        target_amount = int(order_base * weight)
         target_qty = target_amount // exec_prices[stock]
         current_qty = starting_qty.get(stock, 0)
         oq = target_qty - current_qty
 
         if oq > 0:
+            # 매수: 현금 부족 시 살 수 있는 만큼만
             max_affordable_qty = cash_after_trade // exec_prices[stock]
             oq = min(oq, max_affordable_qty)
+        # oq < 0이면 매도 (현금 회수), oq == 0이면 주문 없음
 
         oa = oq * exec_prices[stock]
         order_qty[stock] = oq
