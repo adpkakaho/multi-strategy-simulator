@@ -63,12 +63,36 @@ st.markdown(
         }
     }
     .section-box {
-        border: 3px solid #4b5563;
-        border-radius: 16px;
-        padding: 16px 14px 8px 14px;
-        margin-top: 12px;
-        margin-bottom: 18px;
-        background: #ffffff;
+        border: 2px solid #9ca3af;
+        border-radius: 12px;
+        padding: 20px 18px 12px 18px;
+        margin-top: 14px;
+        margin-bottom: 20px;
+        background: #f9fafb;
+    }
+    .section-box-blue {
+        border: 2px solid #3b82f6;
+        border-radius: 12px;
+        padding: 20px 18px 12px 18px;
+        margin-top: 14px;
+        margin-bottom: 20px;
+        background: #eff6ff;
+    }
+    .section-box-green {
+        border: 2px solid #22c55e;
+        border-radius: 12px;
+        padding: 20px 18px 12px 18px;
+        margin-top: 14px;
+        margin-bottom: 20px;
+        background: #f0fdf4;
+    }
+    .section-box-amber {
+        border: 2px solid #f59e0b;
+        border-radius: 12px;
+        padding: 20px 18px 12px 18px;
+        margin-top: 14px;
+        margin-bottom: 20px;
+        background: #fffbeb;
     }
     div[data-testid="stNumberInput"] input {
         background-color: #ecfccb !important;
@@ -352,7 +376,7 @@ with st.sidebar:
         for stock, weight in portfolio.items():
             st.caption(f"- {stock}: {int(weight * 100)}%")
 
-st.markdown('<div class="section-box">', unsafe_allow_html=True)
+st.markdown('<div class="section-box-blue">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">DAY 비중 입력</div>', unsafe_allow_html=True)
 input_cols = st.columns(len(STRATEGIES))
 weights: dict[str, int] = {}
@@ -431,23 +455,28 @@ if st.button("DAY 실행", disabled=total > 100, use_container_width=True):
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown('<div class="section-box">', unsafe_allow_html=True)
+st.markdown('<div class="section-box-green">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">통합MP</div>', unsafe_allow_html=True)
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
-    # 보유비중: 전일 종가 기준 각 종목 평가금액 / 총자산
-    ap_total = latest["ap_after"]
+    # 보유비중: 이번 DAY 실행 전 상태 = 전일 체결 후 수량 × 전일 종가 / 전일 총자산
+    pre_total = latest["ap_after"]
     mp_rows = []
     for stock, target_w in latest["mp"].items():
         holding_value = latest["ending_qty"].get(stock, 0) * latest["close_prices"][stock]
-        holding_w = holding_value / ap_total if ap_total else 0.0
+        holding_w = holding_value / pre_total if pre_total else 0.0
         gap = target_w - holding_w
         mp_rows.append({"종목": stock, "목표비중": pct(target_w), "보유비중": pct(holding_w), "갭": pct(gap)})
     mp_df = pd.DataFrame(mp_rows)
     st.dataframe(mp_df, use_container_width=True, hide_index=True)
 else:
-    st.info("DAY 실행 후 통합MP가 표시됩니다.")
+    # DAY1 실행 전: 목표비중은 아직 없으므로 전략 종목 전체를 0%로 표시
+    all_stocks = {s: w for strat in STRATEGIES.values() for s, w in strat.items()}
+    mp_rows = [{"종목": stock, "목표비중": "N/A", "보유비중": "0.00%", "갭": "N/A"} for stock in all_stocks]
+    mp_df = pd.DataFrame(mp_rows)
+    st.dataframe(mp_df, use_container_width=True, hide_index=True)
+    st.caption("DAY 실행 전: 목표비중은 비중 입력 후 DAY 실행 시 확정됩니다.")
 
 st.markdown('</div>', unsafe_allow_html=True)
 
