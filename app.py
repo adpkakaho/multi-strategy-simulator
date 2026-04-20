@@ -464,13 +464,20 @@ st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('<div class="section-box-green">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">통합MP</div>', unsafe_allow_html=True)
 
-# 보유비중 기준: 직전 DAY 종료 스냅샷 (DAY1 실행 전이면 DAY0 스냅샷)
-if st.session_state.history:
-    prev_snap = st.session_state.history[-1]
-else:
-    prev_snap = st.session_state.day0_snapshot
+# 통합MP 보유비중:
+# - 현재기준일 DAY1 (day_no=1) → 보유비중(DAY0) = 전부 0% (day0_snapshot)
+# - 현재기준일 DAY2 (day_no=2) → 보유비중(DAY1) = history[0] 마감값
+# - 현재기준일 DAYn (day_no=n) → 보유비중(DAY{n-1}) = history[n-2] 마감값
+# 즉 prev_snap = history[day_no-2], day_no=1이면 day0_snapshot
 
-prev_day_label = f"DAY{st.session_state.day_no - 1}"
+day_no = st.session_state.day_no
+prev_day_label = f"DAY{day_no - 1}"
+
+if day_no == 1:
+    prev_snap = st.session_state.day0_snapshot
+else:
+    prev_snap = st.session_state.history[day_no - 2]
+
 prev_total = prev_snap["ap_after"]
 
 if st.session_state.history:
@@ -484,7 +491,7 @@ if st.session_state.history:
     mp_df = pd.DataFrame(mp_rows)
     st.dataframe(mp_df, use_container_width=True, hide_index=True)
 else:
-    # DAY1 실행 전: 목표비중 미확정, 보유비중은 DAY0 기준 전부 0%
+    # DAY1 실행 전: 목표비중 미확정, 보유비중 DAY0 = 전부 0%
     all_stocks = list(dict.fromkeys(s for strat in STRATEGIES.values() for s in strat))
     mp_rows = [{"종목": stock, "목표비중": "미확정", f"보유비중({prev_day_label})": "0.00%", "갭": "-"} for stock in all_stocks]
     mp_df = pd.DataFrame(mp_rows)
