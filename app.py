@@ -470,13 +470,18 @@ st.markdown('<div class="section-title">통합MP</div>', unsafe_allow_html=True)
 # - 현재기준일 DAYn (day_no=n) → 보유비중(DAY{n-1}) = history[n-2] 마감값
 # 즉 prev_snap = history[day_no-2], day_no=1이면 day0_snapshot
 
+# 헤더에 표시되는 현재 기준일 = DAY{day_no-1}
+# 통합MP 보유비중은 그 전날 = DAY{day_no-2}
+# 예) 헤더=DAY1(day_no=2) → 보유비중(DAY0), 헤더=DAY2(day_no=3) → 보유비중(DAY1)
 day_no = st.session_state.day_no
-prev_day_label = f"DAY{day_no - 1}"
+prev_day_label = f"DAY{day_no - 2}"
 
-if day_no == 1:
+if day_no <= 2:
+    # 헤더가 DAY1 이하 → 보유비중은 DAY0 = 전부 0%
     prev_snap = st.session_state.day0_snapshot
 else:
-    prev_snap = st.session_state.history[day_no - 2]
+    # 헤더가 DAY2 이상 → history[day_no-3] 마감값
+    prev_snap = st.session_state.history[day_no - 3]
 
 prev_total = prev_snap["ap_after"]
 
