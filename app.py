@@ -422,37 +422,22 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="section-box">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">개시전</div>', unsafe_allow_html=True)
-st.markdown('<div class="subsection-title">기초잔고</div>', unsafe_allow_html=True)
-pre1, pre2, pre3 = st.columns(3)
-if st.session_state.day_no == 1:
-    # DAY1 실행 전: 초기값 표시
-    pre1.metric("전일자 현금", won(INITIAL_MONEY))
-    pre2.metric("전일자 총자산", won(INITIAL_MONEY))
-    pre3.metric("이번 DAY 기본 비중", str({k: 0 for k in STRATEGIES}))
-    st.caption("DAY0 개시전 상태: 현금 1억원, 보유 종목 없음")
-else:
-    # DAY2 이후: 전일(history[-1]) 값 표시
-    prev = st.session_state.history[-1]
-    pre1.metric("전일자 현금", won(prev["cash_after_trade"]))
-    pre2.metric("전일자 총자산", won(prev["ap_after"]))
-    pre3.metric("이번 DAY 기본 비중", str({k: int(v) for k, v in prev["weights"].items()}))
-
-qty_df = pd.DataFrame(
-    [
-        {"종목": k, "수량": fmt_int(v), "기준가격": fmt_int(st.session_state.base_prices[k])}
-        for k, v in st.session_state.current_qty.items()
-    ]
-)
-st.dataframe(qty_df, use_container_width=True, hide_index=True)
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
     st.markdown('<div class="subsection-title">통합MP</div>', unsafe_allow_html=True)
-    mp_df = pd.DataFrame(
-        [{"종목": k, "목표비중": pct(v)} for k, v in latest["mp"].items()]
-    )
+    # 보유비중: 전일 종가 기준 각 종목 평가금액 / 총자산
+    ap_total = latest["ap_after"]
+    mp_rows = []
+    for stock, target_w in latest["mp"].items():
+        holding_value = latest["ending_qty"].get(stock, 0) * latest["close_prices"][stock]
+        holding_w = holding_value / ap_total if ap_total else 0.0
+        gap = target_w - holding_w
+        mp_rows.append({"종목": stock, "목표비중": pct(target_w), "보유비중": pct(holding_w), "갭": pct(gap)})
+    mp_df = pd.DataFrame(mp_rows)
     st.dataframe(mp_df, use_container_width=True, hide_index=True)
 else:
+    st.markdown('<div class="subsection-title">통합MP</div>', unsafe_allow_html=True)
     st.info("DAY 실행 후 통합MP가 표시됩니다.")
 
 st.markdown('</div>', unsafe_allow_html=True)
