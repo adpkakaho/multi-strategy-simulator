@@ -354,6 +354,12 @@ def reset_simulation():
     st.session_state.history = []
     st.session_state.seed = DEFAULT_SEED
     st.session_state.last_weights = {k: 0 for k in STRATEGIES}
+    # DAY0 스냅샷: 초기 현금 1억, 전 종목 0주
+    st.session_state.day0_snapshot = {
+        "ending_qty": {stock: 0 for stock in INITIAL_BASE_PRICES},
+        "close_prices": dict(INITIAL_BASE_PRICES),
+        "ap_after": INITIAL_MONEY,
+    }
 
 
 if "history" not in st.session_state:
@@ -458,25 +464,32 @@ st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('<div class="section-box-green">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">통합MP</div>', unsafe_allow_html=True)
 
+# 보유비중 기준: 직전 DAY 종료 스냅샷 (DAY1 실행 전이면 DAY0 스냅샷)
+if st.session_state.history:
+    prev_snap = st.session_state.history[-1]
+else:
+    prev_snap = st.session_state.day0_snapshot
+
+prev_day_label = f"DAY{st.session_state.day_no - 1}"
+prev_total = prev_snap["ap_after"]
+
 if st.session_state.history:
     latest = st.session_state.history[-1]
-    # 보유비중: 이번 DAY 실행 전 상태 = 전일 체결 후 수량 × 전일 종가 / 전일 총자산
-    pre_total = latest["ap_after"]
     mp_rows = []
     for stock, target_w in latest["mp"].items():
-        holding_value = latest["ending_qty"].get(stock, 0) * latest["close_prices"][stock]
-        holding_w = holding_value / pre_total if pre_total else 0.0
+        holding_value = prev_snap["ending_qty"].get(stock, 0) * prev_snap["close_prices"][stock]
+        holding_w = holding_value / prev_total if prev_total else 0.0
         gap = target_w - holding_w
-        mp_rows.append({"종목": stock, "목표비중": pct(target_w), "보유비중": pct(holding_w), "갭": pct(gap)})
+        mp_rows.append({"종목": stock, "목표비중": pct(target_w), f"보유비중({prev_day_label})": pct(holding_w), "갭": pct(gap)})
     mp_df = pd.DataFrame(mp_rows)
     st.dataframe(mp_df, use_container_width=True, hide_index=True)
 else:
-    # DAY1 실행 전: 목표비중은 아직 없으므로 전략 종목 전체를 0%로 표시
-    all_stocks = {s: w for strat in STRATEGIES.values() for s, w in strat.items()}
-    mp_rows = [{"종목": stock, "목표비중": "N/A", "보유비중": "0.00%", "갭": "N/A"} for stock in all_stocks]
+    # DAY1 실행 전: 목표비중 미확정, 보유비중은 DAY0 기준 전부 0%
+    all_stocks = list(dict.fromkeys(s for strat in STRATEGIES.values() for s in strat))
+    mp_rows = [{"종목": stock, "목표비중": "미확정", f"보유비중({prev_day_label})": "0.00%", "갭": "-"} for stock in all_stocks]
     mp_df = pd.DataFrame(mp_rows)
     st.dataframe(mp_df, use_container_width=True, hide_index=True)
-    st.caption("DAY 실행 전: 목표비중은 비중 입력 후 DAY 실행 시 확정됩니다.")
+    st.caption("비중 입력 후 DAY 실행 시 목표비중이 확정됩니다.")
 
 st.markdown('</div>', unsafe_allow_html=True)
 
