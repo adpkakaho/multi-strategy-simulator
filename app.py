@@ -33,28 +33,28 @@ STRATEGIES = {
 }
 
 INITIAL_BASE_PRICES = {
-    "삼성전자": 70000,
-    "SK하이닉스": 200000,
-    "NAVER": 190000,
-    "현대차": 250000,
-    "LG에너지솔루션": 380000,
-    "KB금융": 82000,
-    "POSCO홀딩스": 420000,
-    "한화에어로스페이스": 320000,
-    "셀트리온": 185000,
-    "삼성바이오로직스": 820000,
-    "카카오": 48000,
+    "삼성전자": 70_000,
+    "SK하이닉스": 200_000,
+    "NAVER": 190_000,
+    "현대차": 250_000,
+    "LG에너지솔루션": 380_000,
+    "KB금융": 82_000,
+    "POSCO홀딩스": 420_000,
+    "한화에어로스페이스": 320_000,
+    "셀트리온": 185_000,
+    "삼성바이오로직스": 820_000,
+    "카카오": 48_000,
 }
 
 st.markdown(
     """
     <style>
     .block-container {
+        max-width: 1200px;
         padding-top: 1rem;
         padding-bottom: 2rem;
         padding-left: 1rem;
         padding-right: 1rem;
-        max-width: 1200px;
     }
     @media (max-width: 768px) {
         .block-container {
@@ -65,7 +65,7 @@ st.markdown(
     .section-box {
         border: 1px solid #d1d5db;
         border-radius: 16px;
-        padding: 16px 14px 6px 14px;
+        padding: 16px 14px 8px 14px;
         margin-top: 12px;
         margin-bottom: 18px;
         background: #ffffff;
@@ -97,7 +97,6 @@ st.markdown(
         font-size: 1.8rem;
         font-weight: 800;
     }
-    /* number_input의 step 버튼 시인성 강화 */
     button[kind="secondary"] {
         min-height: 42px;
     }
@@ -115,11 +114,11 @@ def won(x: float) -> str:
     return f"{int(round(x)):,}원"
 
 
-def fmt_int(x):
+def fmt_int(x: float) -> str:
     return f"{int(round(x)):,}"
 
 
-def fmt_float(x, d=2):
+def fmt_float(x: float, d: int = 2) -> str:
     return f"{x:,.{d}f}"
 
 
@@ -135,20 +134,20 @@ def accumulate_return(prev_cum_return, daily_return):
     return (1 + prev_cum_return) * (1 + daily_return) - 1
 
 
-def get_rng():
+def get_rng() -> random.Random:
     return random.Random(st.session_state.seed)
 
 
-def make_execution_prices(base_prices, rng):
+def make_execution_prices(base_prices: dict[str, int], rng: random.Random) -> dict[str, int]:
     return {
         stock: r10(base_price * (1 + rng.uniform(-0.005, 0.005)))
         for stock, base_price in base_prices.items()
     }
 
 
-def make_changed_prices(exec_prices, rng):
-    returns = {}
-    changed_prices = {}
+def make_changed_prices(exec_prices: dict[str, int], rng: random.Random):
+    returns: dict[str, float] = {}
+    changed_prices: dict[str, int] = {}
     for stock, exec_price in exec_prices.items():
         daily_ret = rng.gauss(0.005, 0.02)
         returns[stock] = daily_ret
@@ -156,42 +155,51 @@ def make_changed_prices(exec_prices, rng):
     return returns, changed_prices
 
 
-def build_mp(weights, strategies):
-    mp = {}
+def build_mp(weights: dict[str, int], strategies: dict) -> dict[str, float]:
+    mp: dict[str, float] = {}
     for strategy_name, strategy_weight in weights.items():
         for stock, stock_weight in strategies[strategy_name].items():
-            mp[stock] = mp.get(stock, 0) + (strategy_weight / 100) * stock_weight
+            mp[stock] = mp.get(stock, 0.0) + (strategy_weight / 100) * stock_weight
     return mp
 
 
-def build_contrib(weights, strategies):
-    contrib = {}
+def build_contrib(weights: dict[str, int], strategies: dict) -> dict[str, dict[str, float]]:
+    contrib: dict[str, dict[str, float]] = {}
     for strategy_name in strategies:
         for stock, stock_weight in strategies[strategy_name].items():
             contrib.setdefault(stock, {})[strategy_name] = (weights[strategy_name] / 100) * stock_weight
     return contrib
 
 
-def calc_strategy_theoretical_returns(stock_returns, strategies):
-    result = {}
+def calc_strategy_theoretical_returns(stock_returns: dict[str, float], strategies: dict) -> dict[str, float]:
+    result: dict[str, float] = {}
     for strategy_name, portfolio in strategies.items():
-        strategy_ret = 0
+        strategy_ret = 0.0
         for stock, stock_weight in portfolio.items():
             strategy_ret += stock_weight * stock_returns[stock]
         result[strategy_name] = strategy_ret
     return result
 
 
-def calc_snapshot_strategy_split(qty, close_prices, stock_pnl, weights, strategies, cash_after_trade):
+def calc_snapshot_strategy_split(
+    qty: dict[str, int],
+    close_prices: dict[str, int],
+    stock_pnl: dict[str, int],
+    weights: dict[str, int],
+    strategies: dict,
+    cash_after_trade: int,
+):
     contrib = build_contrib(weights, strategies)
     strategy_eval = {k: 0.0 for k in strategies}
     strategy_pnl = {k: 0.0 for k in strategies}
 
     for stock in qty:
-        total = sum(contrib[stock].values())
         stock_eval = qty[stock] * close_prices[stock]
-        for strategy_name in contrib[stock]:
-            share = contrib[stock][strategy_name] / total if total != 0 else 0
+        stock_total_contrib = sum(contrib.get(stock, {}).values())
+        if stock_total_contrib == 0:
+            continue
+        for strategy_name, strategy_contrib in contrib[stock].items():
+            share = strategy_contrib / stock_total_contrib
             strategy_eval[strategy_name] += stock_eval * share
             strategy_pnl[strategy_name] += stock_pnl[stock] * share
 
@@ -201,28 +209,28 @@ def calc_snapshot_strategy_split(qty, close_prices, stock_pnl, weights, strategi
             cash_share = weights[strategy_name] / total_weight
             strategy_eval[strategy_name] += cash_after_trade * cash_share
 
-    strategy_est_ret = {}
+    strategy_est_ret: dict[str, float] = {}
     for strategy_name in strategies:
         base_value = strategy_eval[strategy_name] - strategy_pnl[strategy_name]
-        strategy_est_ret[strategy_name] = strategy_pnl[strategy_name] / base_value if base_value != 0 else 0
+        strategy_est_ret[strategy_name] = strategy_pnl[strategy_name] / base_value if base_value != 0 else 0.0
 
     return strategy_eval, strategy_pnl, strategy_est_ret
 
 
-def next_default_weight(strategy_name: str) -> float:
+def next_default_weight(strategy_name: str) -> int:
     if st.session_state.day_no == 1:
-        return 0.0
-    return float(st.session_state.last_weights.get(strategy_name, 0.0))
+        return 0
+    return int(st.session_state.last_weights.get(strategy_name, 0))
 
 
-def run_day(day_name, weights, base_prices, starting_cash, starting_qty, order_reference_value):
+def run_day(day_name: str, weights: dict[str, int], base_prices: dict[str, int], starting_cash: int, starting_qty: dict[str, int], order_reference_value: int):
     rng = get_rng()
     mp = build_mp(weights, STRATEGIES)
     exec_prices = make_execution_prices(base_prices, rng)
 
-    order_qty = {}
-    order_amount = {}
-    ending_qty = {}
+    order_qty: dict[str, int] = {}
+    order_amount: dict[str, int] = {}
+    ending_qty: dict[str, int] = dict(starting_qty)
     cash_after_trade = starting_cash
 
     for stock, weight in mp.items():
@@ -243,8 +251,8 @@ def run_day(day_name, weights, base_prices, starting_cash, starting_qty, order_r
 
     stock_returns, close_prices = make_changed_prices(exec_prices, rng)
 
-    stock_pnl = {}
-    ap_rows = []
+    stock_pnl: dict[str, int] = {}
+    ap_rows: list[dict[str, str]] = []
     ap_before = cash_after_trade
     ap_after = cash_after_trade
 
@@ -258,14 +266,14 @@ def run_day(day_name, weights, base_prices, starting_cash, starting_qty, order_r
         ap_rows.append(
             {
                 "종목": stock,
-                "보유수량": ending_qty[stock],
+                "보유수량": fmt_int(ending_qty[stock]),
                 "당일종가": fmt_int(close_prices[stock]),
                 "평가금액": fmt_int(after_value),
             }
         )
 
     ap_pnl = ap_after - ap_before
-    ap_ret = ap_pnl / ap_before if ap_before != 0 else 0
+    ap_ret = ap_pnl / ap_before if ap_before != 0 else 0.0
 
     strategy_theoretical_ret = calc_strategy_theoretical_returns(stock_returns, STRATEGIES)
     strategy_eval, strategy_pnl, strategy_est_ret = calc_snapshot_strategy_split(
@@ -298,18 +306,31 @@ def run_day(day_name, weights, base_prices, starting_cash, starting_qty, order_r
     }
 
 
-
+def reset_simulation():
+    st.session_state.day_no = 1
+    st.session_state.base_prices = dict(INITIAL_BASE_PRICES)
+    st.session_state.current_cash = INITIAL_MONEY
+    st.session_state.current_qty = {stock: 0 for stock in INITIAL_BASE_PRICES}
+    st.session_state.order_reference_value = INITIAL_MONEY
+    st.session_state.strategy_theoretical_cum = {k: 0.0 for k in STRATEGIES}
+    st.session_state.strategy_est_cum = {k: None for k in STRATEGIES}
+    st.session_state.strategy_tracking_active = {k: False for k in STRATEGIES}
+    st.session_state.ap_cum = 0.0
+    st.session_state.history = []
+    st.session_state.seed = DEFAULT_SEED
+    st.session_state.last_weights = {k: 0 for k in STRATEGIES}
 
 
 if "history" not in st.session_state:
     reset_simulation()
 
-
+st.title("멀티전략 DAY 시뮬레이터")
+st.caption("전략 비중 입력 → DAY 실행 → 주문표 / 가격변동 / AP 잔고 / 전략 분해")
 st.markdown(f"### 현재 개시전 기준일: DAY{st.session_state.day_no - 1}")
 
 with st.sidebar:
     st.subheader("설정")
-    st.write(f"현재 DAY: {st.session_state.day_no}")
+    st.write(f"현재 실행 예정 DAY: DAY{st.session_state.day_no}")
     if st.button("시뮬레이션 초기화", use_container_width=True):
         reset_simulation()
         st.rerun()
@@ -323,32 +344,33 @@ with st.sidebar:
 st.markdown('<div class="section-box">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">DAY 비중 입력</div>', unsafe_allow_html=True)
 input_cols = st.columns(len(STRATEGIES))
-weights = {}
-total = 0.0
+weights: dict[str, int] = {}
+total = 0
 for idx, name in enumerate(STRATEGIES):
     with input_cols[idx]:
-        weights[name] = st.number_input(
-            f"Strategy {name} (%)",
-            min_value=0,
-            max_value=100,
-            value=int(next_default_weight(name)),
-            step=10,
-            format="%d",
-            key=f"weight_{name}_{st.session_state.day_no}",
+        weights[name] = int(
+            st.number_input(
+                f"Strategy {name} (%)",
+                min_value=0,
+                max_value=100,
+                value=next_default_weight(name),
+                step=10,
+                format="%d",
+                key=f"weight_{name}_{st.session_state.day_no}",
+            )
         )
         total += weights[name]
 
-cash_weight = 100.0 - total
+cash_weight = 100 - total
 m1, m2, m3 = st.columns(3)
 m1.metric("전략 비중 합계", f"{total:.2f}%")
 m2.metric("현금 비중", f"{cash_weight:.2f}%")
 m3.metric("AP 누적수익률", pct(st.session_state.ap_cum))
 
-can_run = total <= 100.0
-if not can_run:
+if total > 100:
     st.error("전략 비중 합계는 100% 이하여야 합니다.")
 
-if st.button("DAY 실행", disabled=not can_run, use_container_width=True):
+if st.button("DAY 실행", disabled=total > 100, use_container_width=True):
     result = run_day(
         day_name=f"DAY{st.session_state.day_no}",
         weights=weights,
@@ -382,12 +404,10 @@ if st.button("DAY 실행", disabled=not can_run, use_container_width=True):
                     )
 
     st.session_state.ap_cum = accumulate_return(st.session_state.ap_cum, result["ap_ret"])
-    st.session_state.ap_cum_pnl += result["ap_pnl"]
 
     result["strategy_theoretical_cum"] = dict(st.session_state.strategy_theoretical_cum)
     result["strategy_est_cum"] = dict(st.session_state.strategy_est_cum)
     result["ap_cum"] = st.session_state.ap_cum
-    result["ap_cum_pnl"] = st.session_state.ap_cum_pnl
     st.session_state.history.append(result)
 
     st.session_state.current_cash = result["cash_after_trade"]
@@ -402,11 +422,15 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="section-box">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">개시전</div>', unsafe_allow_html=True)
-
 st.markdown('<div class="subsection-title">기초잔고</div>', unsafe_allow_html=True)
 pre1, pre2, pre3 = st.columns(3)
 pre1.metric("전일자 현금", won(st.session_state.current_cash))
-pre2.metric("전일자 총자산", won(st.f = pd.DataFrame(
+pre2.metric("전일자 총자산", won(st.session_state.order_reference_value))
+pre3.metric("이번 DAY 기본 비중", str({k: int(v) for k, v in st.session_state.last_weights.items()}))
+if st.session_state.day_no == 1:
+    st.caption("DAY0 개시전 상태: 현금 1억원, 보유 종목 없음")
+
+qty_df = pd.DataFrame(
     [
         {"종목": k, "수량": fmt_int(v), "기준가격": fmt_int(st.session_state.base_prices[k])}
         for k, v in st.session_state.current_qty.items()
@@ -416,11 +440,11 @@ st.dataframe(qty_df, use_container_width=True, hide_index=True)
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
-    st.markdown(f"### 운용 / 마감 기준일: {latest['day_name']}")
     st.markdown('<div class="subsection-title">통합MP</div>', unsafe_allow_html=True)
-    mp_df = pd.DataFrame([
-        {"종목": k, "목표비중": pct(v)} for k, v in latest["mp"].items()
-   
+    mp_df = pd.DataFrame(
+        [{"종목": k, "목표비중": pct(v)} for k, v in latest["mp"].items()]
+    )
+    st.dataframe(mp_df, use_container_width=True, hide_index=True)
 else:
     st.info("DAY 실행 후 통합MP가 표시됩니다.")
 
@@ -428,51 +452,56 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 if st.session_state.history:
     latest = st.session_state.history[-1]
+    st.markdown(f"### 운용 / 마감 기준일: {latest['day_name']}")
 
     st.markdown('<div class="section-box">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">운용</div>', unsafe_allow_html=True)
-
     st.markdown('<div class="subsection-title">주문표</div>', unsafe_allow_html=True)
-    order_df = pd.DataFrame([
-        {
-            "종목": stock,
-            "목표비중(%)": fmt_float(latest["mp"][stock] * 100, 2),
-            "체결가격": fmt_int(latest["exec_prices"][stock]),
-            "주문수량": fmt_int(latest["order_qty"][stock]),
-            "주문금액": fmt_int(latest["order_amount"][stock]),
-        }
-        for stock in latest["mp"]
-    ])
+    order_df = pd.DataFrame(
+        [
+            {
+                "종목": stock,
+                "목표비중(%)": fmt_float(latest["mp"][stock] * 100, 2),
+                "체결가격": fmt_int(latest["exec_prices"][stock]),
+                "주문수량": fmt_int(latest["order_qty"][stock]),
+                "주문금액": fmt_int(latest["order_amount"][stock]),
+            }
+            for stock in latest["mp"]
+        ]
+    )
     st.dataframe(order_df, use_container_width=True, hide_index=True)
     st.write("주문 후 현금:", won(latest["cash_after_trade"]))
 
     st.markdown('<div class="subsection-title">일간 종목별 가격변동</div>', unsafe_allow_html=True)
-    stock_df = pd.DataFrame([
-        {
-            "종목": stock,
-            "보유수량": fmt_int(latest["ending_qty"][stock]),
-            "당일종가": fmt_int(latest["close_prices"][stock]),
-            "일간등락률": pct(latest["stock_returns"][stock]),
-            "손익": fmt_int(latest["stock_pnl"][stock]),
-        }
-        for stock in latest["ending_qty"]
-    ])
+    stock_df = pd.DataFrame(
+        [
+            {
+                "종목": stock,
+                "보유수량": fmt_int(latest["ending_qty"][stock]),
+                "당일종가": fmt_int(latest["close_prices"][stock]),
+                "일간등락률": pct(latest["stock_returns"][stock]),
+                "손익": fmt_int(latest["stock_pnl"][stock]),
+            }
+            for stock in latest["ending_qty"]
+        ]
+    )
     st.dataframe(stock_df, use_container_width=True, hide_index=True)
-
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="section-box">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">마감</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="subsection-title">전략별 MP수익률(이론값)</div>', unsafe_allow_html=True)
-    theo_df = pd.DataFrame([
-        {
-            "전략": name,
-            "일간": pct(latest["strategy_theoretical_ret"][name]),
-            "누적": pct(latest["strategy_theoretical_cum"][name]),
-        }
-        for name in STRATEGIES
-    ])
+    theo_df = pd.DataFrame(
+        [
+            {
+                "전략": name,
+                "일간": pct(latest["strategy_theoretical_ret"][name]),
+                "누적": pct(latest["strategy_theoretical_cum"][name]),
+            }
+            for name in STRATEGIES
+        ]
+    )
     st.dataframe(theo_df, use_container_width=True, hide_index=True)
 
     st.markdown('<div class="subsection-title">AP 잔고 리포팅</div>', unsafe_allow_html=True)
@@ -488,50 +517,53 @@ if st.session_state.history:
     x6.metric("AP 누적 수익률", pct(latest["ap_cum"]))
 
     st.markdown('<div class="subsection-title">AP 잔고 전략별 분해</div>', unsafe_allow_html=True)
-    split_df = pd.DataFrame([
-        {
-            "전략": name,
-            "평가금액(현금포함)": fmt_int(latest["strategy_eval"][name]),
-            "기여손익": fmt_int(latest["strategy_pnl"][name]),
-            "전략별 추정 수익률": pct(latest["strategy_est_ret"][name]),
-            "전략별 추정 누적 수익률": pct(latest["strategy_est_cum"][name]),
-        }
-        for name in STRATEGIES
-    ])
+    split_df = pd.DataFrame(
+        [
+            {
+                "전략": name,
+                "평가금액(현금포함)": fmt_int(latest["strategy_eval"][name]),
+                "기여손익": fmt_int(latest["strategy_pnl"][name]),
+                "전략별 추정 수익률": pct(latest["strategy_est_ret"][name]),
+                "전략별 추정 누적 수익률": pct(latest["strategy_est_cum"][name]),
+            }
+            for name in STRATEGIES
+        ]
+    )
     st.dataframe(split_df, use_container_width=True, hide_index=True)
     st.write("전략별 평가금액 합계:", won(sum(latest["strategy_eval"].values())))
     st.write("전략별 기여손익 합계:", won(sum(latest["strategy_pnl"].values())))
-
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.divider()
-
     st.markdown('<div class="subsection-title">DAY 히스토리</div>', unsafe_allow_html=True)
-    hist_df = pd.DataFrame([
-        {
-            "DAY": item["day_name"],
-            "A 비중": fmt_float(item["weights"].get("A", 0), 2),
-            "B 비중": fmt_float(item["weights"].get("B", 0), 2),
-            "C 비중": fmt_float(item["weights"].get("C", 0), 2),
-            "AP 일간 수익률": pct(item["ap_ret"]),
-            "AP 누적 수익률": pct(item["ap_cum"]),
-            "총자산": won(item["ap_after"]),
-        }
-        for item in st.session_state.history
-    ])
+    hist_df = pd.DataFrame(
+        [
+            {
+                "DAY": item["day_name"],
+                "A 비중": fmt_float(item["weights"].get("A", 0), 2),
+                "B 비중": fmt_float(item["weights"].get("B", 0), 2),
+                "C 비중": fmt_float(item["weights"].get("C", 0), 2),
+                "AP 일간 수익률": pct(item["ap_ret"]),
+                "AP 누적 수익률": pct(item["ap_cum"]),
+                "총자산": won(item["ap_after"]),
+            }
+            for item in st.session_state.history
+        ]
+    )
     st.dataframe(hist_df, use_container_width=True, hide_index=True)
 
     st.markdown('<div class="subsection-title">누적수익률 그래프</div>', unsafe_allow_html=True)
-    chart_source = pd.DataFrame([
-        {
-            "DAY": item["day_name"],
-            "AP 누적수익률": (item["ap_cum"] or 0) * 100,
-            "전략A 이론 누적수익률": (item["strategy_theoretical_cum"].get("A") or 0) * 100,
-            "전략B 이론 누적수익률": (item["strategy_theoretical_cum"].get("B") or 0) * 100,
-            "전략C 이론 누적수익률": (item["strategy_theoretical_cum"].get("C") or 0) * 100,
-        }
-        for item in st.session_state.history
-    ])
+    chart_source = pd.DataFrame(
+        [
+            {
+                "DAY": item["day_name"],
+                "AP 누적수익률": (item["ap_cum"] or 0) * 100,
+                "전략A 이론 누적수익률": (item["strategy_theoretical_cum"].get("A") or 0) * 100,
+                "전략B 이론 누적수익률": (item["strategy_theoretical_cum"].get("B") or 0) * 100,
+                "전략C 이론 누적수익률": (item["strategy_theoretical_cum"].get("C") or 0) * 100,
+            }
+            for item in st.session_state.history
+        ]
+    )
     chart_long = chart_source.melt("DAY", var_name="구분", value_name="누적수익률(%)")
     line_chart = (
         alt.Chart(chart_long)
@@ -544,4 +576,6 @@ if st.session_state.history:
         )
         .properties(height=320)
     )
-    st.altair_char
+    st.altair_chart(line_chart, use_container_width=True)
+else:
+    st.info("전략별 초기 비중은 0%로 설정되어 있습니다. 비중을 입력하고 DAY 실행을 누르세요.")
