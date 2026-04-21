@@ -248,10 +248,20 @@ def run_day(day_name: str, weights: dict[str, int], base_prices: dict[str, int],
         starting_qty.get(s, 0) * exec_prices[s] for s in exec_prices
     )
 
+    REBALANCE_THRESHOLD = 0.01  # 1% 미만 갭은 리밸런싱 생략
+
     for stock, weight in mp.items():
         target_amount = int(order_base * weight)
         target_qty = target_amount // exec_prices[stock]
         current_qty = starting_qty.get(stock, 0)
+        current_amount = current_qty * exec_prices[stock]
+        # 현재 비중과 목표 비중 차이가 임계값 미만이면 주문 생략
+        current_weight = current_amount / order_base if order_base > 0 else 0
+        if abs(weight - current_weight) < REBALANCE_THRESHOLD:
+            order_qty[stock] = 0
+            order_amount[stock] = 0
+            ending_qty[stock] = current_qty
+            continue
         oq = target_qty - current_qty
 
         if oq > 0:
@@ -336,7 +346,7 @@ def reset_simulation():
     st.session_state.history = []
     st.session_state.seed = DEFAULT_SEED
     st.session_state.last_weights = {k: 0 for k in STRATEGIES}
-    # DAY0 스냅샷: 초기 현금 1억, 전 종목 0주
+    st.session_state.preset_weights = None  # 동일비중/랜덤 프리셋
     st.session_state.day0_snapshot = {
         "ending_qty": {stock: 0 for stock in INITIAL_BASE_PRICES},
         "close_prices": dict(INITIAL_BASE_PRICES),
@@ -346,6 +356,8 @@ def reset_simulation():
 
 if "history" not in st.session_state:
     reset_simulation()
+if "preset_weights" not in st.session_state:
+    st.session_state.preset_weights = None
 
 # ── 사이드바 ──
 with st.sidebar:
@@ -413,18 +425,46 @@ def execute_one_day(weights: dict[str, int]):
 # ══════════════════════════════════════════
 sec_header("DAY 비중 입력", "blue")
 
+# 동일비중 / 랜덤 버튼
+pb1, pb2, pb3 = st.columns([1, 1, 2])
+with pb1:
+    if st.button("동일비중 (33/33/33)", use_container_width=True):
+        st.session_state.preset_weights = {"A": 33, "B": 33, "C": 33}
+        st.rerun()
+with pb2:
+    if st.button("랜덤 배분", use_container_width=True):
+        _rng = random.Random()
+        _names = list(STRATEGIES.keys())
+        _w: dict[str, int] = {}
+        _remaining = 100
+        for i, _n in enumerate(_names):
+            if i == len(_names) - 1:
+                _w[_n] = _remaining
+            else:
+                _lo = max(10, _remaining - 50 * (len(_names) - i - 1))
+                _hi = min(50, _remaining - 10 * (len(_names) - i - 1))
+                _lo = min(_lo, _hi)
+                _pick = _rng.randrange(_lo, _hi + 1, 10) if _lo <= _hi else _lo
+                _w[_n] = _pick
+                _remaining -= _pick
+        st.session_state.preset_weights = _w
+        st.rerun()
+
+# 프리셋 적용
+_preset = st.session_state.get("preset_weights") or {}
+
 input_cols = st.columns(len(STRATEGIES))
 weights: dict[str, int] = {}
 total = 0
 for idx, name in enumerate(STRATEGIES):
     with input_cols[idx]:
-        _default = next_default_weight(name)
+        _default = _preset.get(name, next_default_weight(name))
         _val = st.number_input(
             f"Strategy {name} (%)",
             min_value=0, max_value=100,
-            value=None if _default == 0 else _default,
+            value=int(_default) if _default else None,
             placeholder="0", step=10, format="%d",
-            key=f"weight_{name}_{st.session_state.day_no}",
+            key=f"weight_{name}_{st.session_state.day_no}_{_preset.get(name, '')}",
         )
         weights[name] = int(_val) if _val is not None else 0
         total += weights[name]
@@ -441,10 +481,12 @@ if total > 100:
 btn_col1, btn_col2 = st.columns([2, 1])
 with btn_col1:
     if st.button("DAY 실행", disabled=total > 100, use_container_width=True):
+        st.session_state.preset_weights = None
         execute_one_day(weights)
         st.rerun()
 with btn_col2:
     if st.button("3일 연속 실행", disabled=total > 100, use_container_width=True):
+        st.session_state.preset_weights = None
         for _ in range(3):
             execute_one_day(weights)
         st.rerun()
@@ -610,11 +652,11 @@ if st.session_state.history:
     c1, c2, c3 = st.columns(3)
     c4, c5, c6 = st.columns(3)
     c1.metric("평가금액(SUM)", won(latest["ap_after"]))
-    c2.metric("AP 일간 손익", won(ap_pnl_val), delta=won(ap_pnl_val))
-    c3.metric("AP 누적 손익", won(ap_cum_pnl), delta=won(ap_cum_pnl))
+    c2.metric("AP 일간 손익", won(ap_pnl_val))
+    c3.metric("AP 누적 손익", won(ap_cum_pnl))
     c4.metric("현금", won(latest["cash_after_trade"]))
-    c5.metric("AP 일간 수익률", pct(ap_ret_val), delta=f"{ap_ret_val*100:.2f}%")
-    c6.metric("AP 누적 수익률", pct(ap_cum_val), delta=f"{ap_cum_val*100:.2f}%")
+    c5.metric("AP 일간 수익률", pct(ap_ret_val))
+    c6.metric("AP 누적 수익률", pct(ap_cum_val))
 
     sub_header("AP 잔고 전략별 분해")
     split_rows = [
@@ -666,6 +708,128 @@ if st.session_state.history:
         .properties(height=240, title="전략별 AP 잔고 구성비 (주식 기준, 현금 별도)")
     )
     st.altair_chart(area_chart, use_container_width=True)
+
+    # ── 전략별 수익기여도 막대차트 ──
+    sub_header("전략별 수익기여도 (일간 기여손익)")
+    contrib_rows = []
+    for item in st.session_state.history:
+        for sname in strategy_names:
+            contrib_rows.append({
+                "DAY": item["day_name"],
+                "전략": f"전략{sname}",
+                "기여손익(원)": item["strategy_pnl"].get(sname, 0),
+            })
+    contrib_src = pd.DataFrame(contrib_rows)
+    contrib_chart = (
+        alt.Chart(contrib_src)
+        .mark_bar()
+        .encode(
+            x=alt.X("DAY:N", title="DAY", sort=day_order2),
+            y=alt.Y("기여손익(원):Q", title="기여손익(원)", stack=True),
+            color=alt.Color("전략:N", title="전략",
+                            scale=alt.Scale(scheme="tableau10")),
+            tooltip=["DAY", "전략", alt.Tooltip("기여손익(원):Q", format=",.0f")],
+        )
+        .properties(height=220, title="전략별 일간 기여손익 (누적 스택 막대)")
+    )
+    zero_line = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(
+        color="gray", strokeWidth=0.8, strokeDash=[3, 3]
+    ).encode(y="y:Q")
+    st.altair_chart(contrib_chart + zero_line, use_container_width=True)
+
+    # ── 손익 귀인 분석 ──
+    st.divider()
+    sec_header("손익 귀인 분석", "gray")
+    st.caption("종목별 손익이 각 전략에 얼마나 귀속되는지 분해합니다.")
+
+    # 최신 DAY 기준 귀인 분석
+    contrib_map = build_contrib(latest["weights"], STRATEGIES)
+    attrib_rows = []
+    for stock in latest["ending_qty"]:
+        stock_pnl_val = latest["stock_pnl"].get(stock, 0)
+        total_c = sum(contrib_map.get(stock, {}).values())
+        for sname in strategy_names:
+            c = contrib_map.get(stock, {}).get(sname, 0)
+            share = c / total_c if total_c > 0 else 0
+            attrib_rows.append({
+                "전략": f"전략{sname}",
+                "종목": stock,
+                "귀속비율": f"{share*100:.1f}%",
+                "종목손익(원)": fmt_int(stock_pnl_val),
+                "전략귀속손익(원)": fmt_int(stock_pnl_val * share),
+            })
+    attrib_df = pd.DataFrame(attrib_rows)
+    # 전략귀속손익이 0인 행 제거
+    attrib_df = attrib_df[attrib_df["귀속비율"] != "0.0%"].reset_index(drop=True)
+    st.dataframe(
+        style_df(attrib_df, ["전략귀속손익(원)"]),
+        use_container_width=True, hide_index=True, height=min(df_height(attrib_df), 450),
+    )
+
+    # 전략별 귀인 합계
+    sub_header("전략별 귀인손익 합계 (최신 DAY 기준)")
+    attrib_sum_rows = []
+    for sname in strategy_names:
+        rows_s = [r for r in attrib_rows if r["전략"] == f"전략{sname}"]
+        total_attr = sum(
+            float(r["전략귀속손익(원)"].replace(",", ""))
+            for r in rows_s
+        )
+        attrib_sum_rows.append({
+            "전략": f"전략{sname}",
+            "귀인손익 합계(원)": fmt_int(total_attr),
+            "기여손익(전략분해)": fmt_int(latest["strategy_pnl"].get(sname, 0)),
+        })
+    attrib_sum_df = pd.DataFrame(attrib_sum_rows)
+    st.dataframe(
+        style_df(attrib_sum_df, ["귀인손익 합계(원)", "기여손익(전략분해)"]),
+        use_container_width=True, hide_index=True, height=df_height(attrib_sum_df),
+    )
+
+    # 귀인손익 히트맵 (종목 × 전략)
+    sub_header("종목 × 전략 귀인손익 히트맵")
+    heatmap_rows = []
+    for stock in latest["ending_qty"]:
+        stock_pnl_val = latest["stock_pnl"].get(stock, 0)
+        total_c = sum(contrib_map.get(stock, {}).values())
+        for sname in strategy_names:
+            c = contrib_map.get(stock, {}).get(sname, 0)
+            share = c / total_c if total_c > 0 else 0
+            heatmap_rows.append({
+                "종목": stock,
+                "전략": f"전략{sname}",
+                "귀속손익": stock_pnl_val * share,
+            })
+    heatmap_src = pd.DataFrame(heatmap_rows)
+    heatmap = (
+        alt.Chart(heatmap_src)
+        .mark_rect()
+        .encode(
+            x=alt.X("전략:N", title="전략"),
+            y=alt.Y("종목:N", title="종목"),
+            color=alt.Color(
+                "귀속손익:Q", title="귀속손익(원)",
+                scale=alt.Scale(scheme="redblue", domainMid=0),
+            ),
+            tooltip=["종목", "전략", alt.Tooltip("귀속손익:Q", format=",.0f", title="귀속손익(원)")],
+        )
+        .properties(height=320, title="종목 × 전략 귀인손익 (최신 DAY, 파랑=수익 / 빨강=손실)")
+    )
+    text_layer = (
+        alt.Chart(heatmap_src)
+        .mark_text(fontSize=11)
+        .encode(
+            x=alt.X("전략:N"),
+            y=alt.Y("종목:N"),
+            text=alt.Text("귀속손익:Q", format=",.0f"),
+            color=alt.condition(
+                "datum.귀속손익 > 0",
+                alt.value("#0c4a6e"),
+                alt.value("#7f1d1d"),
+            ),
+        )
+    )
+    st.altair_chart(heatmap + text_layer, use_container_width=True)
 
 else:
     st.info("전략별 초기 비중은 0%로 설정되어 있습니다. 비중을 입력하고 DAY 실행을 누르세요.")
