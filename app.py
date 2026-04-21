@@ -50,91 +50,24 @@ st.markdown(
     """
     <style>
     .block-container {
-        max-width: 1200px;
-        padding-top: 1rem;
+        max-width: 960px;
+        padding-top: 1.2rem;
         padding-bottom: 2rem;
         padding-left: 1rem;
         padding-right: 1rem;
     }
-    @media (max-width: 768px) {
-        .block-container {
-            padding-left: 0.5rem;
-            padding-right: 0.5rem;
-        }
-    }
-    .section-box {
-        border: 2px solid #9ca3af;
-        border-radius: 12px;
-        padding: 20px 18px 12px 18px;
-        margin-top: 14px;
-        margin-bottom: 20px;
-        background: #f9fafb;
-    }
-    .section-box-blue {
-        border: 2px solid #3b82f6;
-        border-radius: 12px;
-        padding: 20px 18px 12px 18px;
-        margin-top: 14px;
-        margin-bottom: 20px;
-        background: #eff6ff;
-    }
-    .section-box-green {
-        border: 2px solid #22c55e;
-        border-radius: 12px;
-        padding: 20px 18px 12px 18px;
-        margin-top: 14px;
-        margin-bottom: 20px;
-        background: #f0fdf4;
-    }
-    .section-box-amber {
-        border: 2px solid #f59e0b;
-        border-radius: 12px;
-        padding: 20px 18px 12px 18px;
-        margin-top: 14px;
-        margin-bottom: 20px;
-        background: #fffbeb;
-    }
-    div[data-testid="stNumberInput"] input {
-        background-color: #ecfccb !important;
-        border: 2px solid #84cc16 !important;
-        font-weight: 700;
-        color: #1a2e05 !important;
-    }
-    div[data-testid="stNumberInput"] input:focus {
-        background-color: #d9f99d !important;
-        border: 2px solid #65a30d !important;
-        box-shadow: 0 0 0 3px rgba(132,204,22,0.3) !important;
-    }
-    .section-title {
-        font-size: 1.45rem;
-        font-weight: 800;
-        margin-bottom: 12px;
-        color: #111827;
-    }
-    .subsection-title {
-        font-size: 1.15rem;
-        font-weight: 700;
-        margin-top: 6px;
-        margin-bottom: 8px;
-        color: #1f2937;
-    }
-    div[data-testid="stMetric"] {
-        background: #f8fafc;
-        border: 1px solid #e5e7eb;
-        padding: 10px;
-        border-radius: 14px;
-    }
-    div[data-testid="stMetricLabel"] {
-        font-size: 0.95rem;
-        font-weight: 600;
-    }
-    div[data-testid="stMetricValue"] {
-        font-size: 1.8rem;
-        font-weight: 800;
-    }
-    button[kind="secondary"] {
-        min-height: 42px;
-    }
+    .sec { border: 1px solid #d1d5db; border-radius: 12px; padding: 16px 18px 14px 18px; margin-bottom: 14px; background: #f9fafb; }
+    .sec.blue  { border-color: #85B7EB; background: #E6F1FB; }
+    .sec.green { border-color: #97C459; background: #EAF3DE; }
+    .sec-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; color: #111827; }
+    .sub-title { font-size: 0.78rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin: 14px 0 6px 0; }
+    div[data-testid="stNumberInput"] input { background-color: #ecfccb !important; border: 1.5px solid #84cc16 !important; font-weight: 700; color: #1a2e05 !important; font-size: 1.15rem !important; }
+    div[data-testid="stNumberInput"] input:focus { background-color: #d9f99d !important; border-color: #65a30d !important; box-shadow: 0 0 0 3px rgba(132,204,22,0.25) !important; }
+    div[data-testid="stMetric"] { background: #ffffff; border: 0.5px solid #e5e7eb; padding: 10px 14px; border-radius: 10px; }
+    div[data-testid="stMetricLabel"] p { font-size: 0.78rem !important; color: #6b7280; }
+    div[data-testid="stMetricValue"] { font-size: 1.25rem !important; font-weight: 600; }
+    .note { font-size: 0.82rem; color: #6b7280; margin-top: 4px; }
+    .note.info { color: #1d4ed8; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -372,55 +305,26 @@ def reset_simulation():
 if "history" not in st.session_state:
     reset_simulation()
 
-st.title("멀티전략 DAY 시뮬레이터")
-st.caption("전략 비중 입력 → DAY 실행 → 주문표 / 가격변동 / AP 잔고 / 전략 분해")
-st.markdown(f"### 현재 기준일: DAY{st.session_state.day_no - 1}")
-
+# ── 사이드바 ──
 with st.sidebar:
     st.subheader("설정")
     st.write(f"현재 실행 예정 DAY: DAY{st.session_state.day_no}")
     if st.button("시뮬레이션 초기화", use_container_width=True):
         reset_simulation()
         st.rerun()
-
     st.subheader("전략 구성")
     for name, portfolio in STRATEGIES.items():
         st.write(f"Strategy {name}")
         for stock, weight in portfolio.items():
             st.caption(f"- {stock}: {int(weight * 100)}%")
 
-st.markdown('<div class="section-box-blue">', unsafe_allow_html=True)
-st.markdown('<div class="section-title">DAY 비중 입력</div>', unsafe_allow_html=True)
-input_cols = st.columns(len(STRATEGIES))
-weights: dict[str, int] = {}
-total = 0
-for idx, name in enumerate(STRATEGIES):
-    with input_cols[idx]:
-        _default = next_default_weight(name)
-        _val = st.number_input(
-            f"Strategy {name} (%)",
-            min_value=0,
-            max_value=100,
-            value=None if _default == 0 else _default,
-            placeholder="0",
-            step=10,
-            format="%d",
-            key=f"weight_{name}_{st.session_state.day_no}",
-        )
-        weights[name] = int(_val) if _val is not None else 0
-        total += weights[name]
+# ── 페이지 타이틀 ──
+st.title("멀티전략 DAY 시뮬레이터")
+st.caption("전략 비중 입력 → DAY 실행 → 주문표 / 가격변동 / AP 잔고 / 전략 분해")
+st.markdown(f"**현재 기준일: DAY{st.session_state.day_no - 1}**")
 
-cash_weight = 100 - total
-m1, m2, m3 = st.columns(3)
-m1.metric("전략 비중 합계", f"{total:.2f}%")
-m2.metric("현금 비중", f"{cash_weight:.2f}%")
-m3.metric("AP 누적수익률", pct(st.session_state.ap_cum))
-
-if total > 100:
-    st.error("전략 비중 합계는 100% 이하여야 합니다.")
 
 def execute_one_day(weights: dict[str, int]):
-    """현재 weights로 하루 실행 후 session_state 갱신"""
     result = run_day(
         day_name=f"DAY{st.session_state.day_no}",
         weights=weights,
@@ -462,6 +366,37 @@ def execute_one_day(weights: dict[str, int]):
     st.session_state.day_no += 1
 
 
+# ══════════════════════════════════════════
+# [1] DAY 비중 입력 (파란 박스)
+# ══════════════════════════════════════════
+st.markdown('<div class="sec blue">', unsafe_allow_html=True)
+st.markdown('<div class="sec-title">DAY 비중 입력</div>', unsafe_allow_html=True)
+
+input_cols = st.columns(len(STRATEGIES))
+weights: dict[str, int] = {}
+total = 0
+for idx, name in enumerate(STRATEGIES):
+    with input_cols[idx]:
+        _default = next_default_weight(name)
+        _val = st.number_input(
+            f"Strategy {name} (%)",
+            min_value=0, max_value=100,
+            value=None if _default == 0 else _default,
+            placeholder="0", step=10, format="%d",
+            key=f"weight_{name}_{st.session_state.day_no}",
+        )
+        weights[name] = int(_val) if _val is not None else 0
+        total += weights[name]
+
+cash_weight = 100 - total
+m1, m2, m3 = st.columns(3)
+m1.metric("전략 비중 합계", f"{total:.2f}%")
+m2.metric("현금 비중", f"{cash_weight:.2f}%")
+m3.metric("AP 누적수익률", pct(st.session_state.ap_cum))
+
+if total > 100:
+    st.error("전략 비중 합계는 100% 이하여야 합니다.")
+
 btn_col1, btn_col2 = st.columns([2, 1])
 with btn_col1:
     if st.button("DAY 실행", disabled=total > 100, use_container_width=True):
@@ -475,28 +410,16 @@ with btn_col2:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown('<div class="section-box-green">', unsafe_allow_html=True)
-st.markdown('<div class="section-title">통합MP</div>', unsafe_allow_html=True)
 
-# 통합MP 보유비중:
-# - 현재기준일 DAY1 (day_no=1) → 보유비중(DAY0) = 전부 0% (day0_snapshot)
-# - 현재기준일 DAY2 (day_no=2) → 보유비중(DAY1) = history[0] 마감값
-# - 현재기준일 DAYn (day_no=n) → 보유비중(DAY{n-1}) = history[n-2] 마감값
-# 즉 prev_snap = history[day_no-2], day_no=1이면 day0_snapshot
+# ══════════════════════════════════════════
+# [2] 통합MP (초록 박스) + 히스토리 + 차트
+# ══════════════════════════════════════════
+st.markdown('<div class="sec green">', unsafe_allow_html=True)
+st.markdown('<div class="sec-title">통합MP</div>', unsafe_allow_html=True)
 
-# 헤더에 표시되는 현재 기준일 = DAY{day_no-1}
-# 통합MP 보유비중은 그 전날 = DAY{day_no-2}
-# 예) 헤더=DAY1(day_no=2) → 보유비중(DAY0), 헤더=DAY2(day_no=3) → 보유비중(DAY1)
 day_no = st.session_state.day_no
 prev_day_label = f"DAY{day_no - 2}"
-
-if day_no <= 2:
-    # 헤더가 DAY1 이하 → 보유비중은 DAY0 = 전부 0%
-    prev_snap = st.session_state.day0_snapshot
-else:
-    # 헤더가 DAY2 이상 → history[day_no-3] 마감값
-    prev_snap = st.session_state.history[day_no - 3]
-
+prev_snap = st.session_state.day0_snapshot if day_no <= 2 else st.session_state.history[day_no - 3]
 prev_total = prev_snap["ap_after"]
 
 if st.session_state.history:
@@ -505,165 +428,196 @@ if st.session_state.history:
     for stock, target_w in latest["mp"].items():
         holding_value = prev_snap["ending_qty"].get(stock, 0) * prev_snap["close_prices"][stock]
         holding_w = holding_value / prev_total if prev_total else 0.0
-        gap = target_w - holding_w
-        mp_rows.append({"종목": stock, "목표비중": pct(target_w), f"보유비중({prev_day_label})": pct(holding_w), "갭": pct(gap)})
+        mp_rows.append({
+            "종목": stock,
+            "목표비중": pct(target_w),
+            f"보유비중({prev_day_label})": pct(holding_w),
+            "갭": pct(target_w - holding_w),
+        })
     mp_df = pd.DataFrame(mp_rows)
     st.dataframe(mp_df, use_container_width=True, hide_index=True, height=df_height(mp_df))
 else:
-    # DAY1 실행 전: 목표비중 미확정, 보유비중 DAY0 = 전부 0%
     all_stocks = list(dict.fromkeys(s for strat in STRATEGIES.values() for s in strat))
-    mp_rows = [{"종목": stock, "목표비중": "미확정", f"보유비중({prev_day_label})": "0.00%", "갭": "-"} for stock in all_stocks]
-    mp_df = pd.DataFrame(mp_rows)
-    st.dataframe(mp_df, use_container_width=True, hide_index=True, height=df_height(mp_df))
+    mp_rows = [{"종목": s, "목표비중": "미확정", f"보유비중({prev_day_label})": "0.00%", "갭": "-"} for s in all_stocks]
+    st.dataframe(pd.DataFrame(mp_rows), use_container_width=True, hide_index=True,
+                 height=df_height(pd.DataFrame(mp_rows)))
     st.caption("비중 입력 후 DAY 실행 시 목표비중이 확정됩니다.")
 
 if st.session_state.history:
-    st.markdown('<div class="subsection-title">DAY 히스토리</div>', unsafe_allow_html=True)
-    _hist_df = pd.DataFrame(
-        [
-            {
-                "DAY": item["day_name"],
-                "A 비중": fmt_float(item["weights"].get("A", 0), 2),
-                "B 비중": fmt_float(item["weights"].get("B", 0), 2),
-                "C 비중": fmt_float(item["weights"].get("C", 0), 2),
-                "AP 일간 수익률": pct(item["ap_ret"]),
-                "AP 누적 수익률": pct(item["ap_cum"]),
-                "총자산": won(item["ap_after"]),
-            }
-            for item in st.session_state.history
-        ]
-    )
-    st.dataframe(_hist_df, use_container_width=True, hide_index=True, height=df_height(_hist_df))
+    # DAY 히스토리 테이블
+    st.markdown('<div class="sub-title">DAY 히스토리</div>', unsafe_allow_html=True)
+    hist_df = pd.DataFrame([
+        {
+            "DAY": item["day_name"],
+            "A 비중": fmt_float(item["weights"].get("A", 0), 0),
+            "B 비중": fmt_float(item["weights"].get("B", 0), 0),
+            "C 비중": fmt_float(item["weights"].get("C", 0), 0),
+            "AP 일간": pct(item["ap_ret"]),
+            "AP 누적": pct(item["ap_cum"]),
+            "총자산": won(item["ap_after"]),
+        }
+        for item in st.session_state.history
+    ])
+    st.dataframe(hist_df, use_container_width=True, hide_index=True, height=df_height(hist_df))
 
-    st.markdown('<div class="subsection-title">누적수익률 그래프</div>', unsafe_allow_html=True)
-    _chart_source = pd.DataFrame(
-        [
-            {
-                "DAY": item["day_name"],
-                "AP 누적수익률": (item["ap_cum"] or 0) * 100,
-                "전략A 이론 누적수익률": (item["strategy_theoretical_cum"].get("A") or 0) * 100,
-                "전략B 이론 누적수익률": (item["strategy_theoretical_cum"].get("B") or 0) * 100,
-                "전략C 이론 누적수익률": (item["strategy_theoretical_cum"].get("C") or 0) * 100,
-            }
-            for item in st.session_state.history
-        ]
-    )
-    _chart_long = _chart_source.melt("DAY", var_name="구분", value_name="누적수익률(%)")
-    _day_order = _chart_source["DAY"].tolist()
-    _line_chart = (
-        alt.Chart(_chart_long)
+    # 누적수익률 라인 차트
+    st.markdown('<div class="sub-title">누적수익률 그래프</div>', unsafe_allow_html=True)
+    chart_src = pd.DataFrame([
+        {
+            "DAY": item["day_name"],
+            "AP 누적수익률": (item["ap_cum"] or 0) * 100,
+            "전략A 이론": (item["strategy_theoretical_cum"].get("A") or 0) * 100,
+            "전략B 이론": (item["strategy_theoretical_cum"].get("B") or 0) * 100,
+            "전략C 이론": (item["strategy_theoretical_cum"].get("C") or 0) * 100,
+        }
+        for item in st.session_state.history
+    ])
+    day_order = chart_src["DAY"].tolist()
+    chart_long = chart_src.melt("DAY", var_name="구분", value_name="누적수익률(%)")
+    line_chart = (
+        alt.Chart(chart_long)
         .mark_line(point=True)
         .encode(
-            x=alt.X("DAY:N", title="DAY", sort=_day_order),
+            x=alt.X("DAY:N", title="DAY", sort=day_order),
             y=alt.Y("누적수익률(%):Q", title="누적수익률(%)"),
             color=alt.Color("구분:N", title="구분"),
+            strokeDash=alt.condition(
+                alt.datum["구분"] == "AP 누적수익률",
+                alt.value([1, 0]),
+                alt.value([4, 3]),
+            ),
             tooltip=["DAY", "구분", alt.Tooltip("누적수익률(%):Q", format=".2f")],
         )
-        .properties(height=280)
+        .properties(height=260)
     )
-    st.altair_chart(_line_chart, use_container_width=True)
+    st.altair_chart(line_chart, use_container_width=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
 
+
+# ══════════════════════════════════════════
+# [3] 운용 / 마감 (데이터 있을 때만)
+# ══════════════════════════════════════════
 if st.session_state.history:
     latest = st.session_state.history[-1]
-    st.markdown(f"### 운용 / 마감 기준일: {latest['day_name']}")
+    st.markdown(f"**운용 / 마감 기준일: {latest['day_name']}**")
 
-    st.markdown('<div class="section-box">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">운용</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subsection-title">주문표</div>', unsafe_allow_html=True)
-    order_df = pd.DataFrame(
-        [
-            {
-                "종목": stock,
-                "목표비중(%)": fmt_float(latest["mp"][stock] * 100, 2),
-                "체결가격": fmt_int(latest["exec_prices"][stock]),
-                "주문수량": fmt_int(latest["order_qty"][stock]),
-                "주문금액": fmt_int(latest["order_amount"][stock]),
-            }
-            for stock in latest["mp"]
-        ]
-    )
+    # ── 운용 섹션 ──
+    st.markdown('<div class="sec">', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">운용</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="sub-title">주문표</div>', unsafe_allow_html=True)
+    order_df = pd.DataFrame([
+        {
+            "종목": stock,
+            "목표비중(%)": fmt_float(latest["mp"][stock] * 100, 2),
+            "체결가격": fmt_int(latest["exec_prices"][stock]),
+            "주문수량": fmt_int(latest["order_qty"][stock]),
+            "주문금액": fmt_int(latest["order_amount"][stock]),
+        }
+        for stock in latest["mp"]
+    ])
     st.dataframe(order_df, use_container_width=True, hide_index=True, height=df_height(order_df))
-    st.write("주문 후 현금:", won(latest["cash_after_trade"]))
+    st.markdown(f'<div class="note">주문 후 현금: {won(latest["cash_after_trade"])}</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="subsection-title">일간 종목별 가격변동</div>', unsafe_allow_html=True)
-    stock_df = pd.DataFrame(
-        [
-            {
-                "종목": stock,
-                "보유수량": fmt_int(latest["ending_qty"][stock]),
-                "당일종가": fmt_int(latest["close_prices"][stock]),
-                "일간등락률": pct(latest["stock_returns"][stock]),
-                "손익": fmt_int(latest["stock_pnl"][stock]),
-            }
-            for stock in latest["ending_qty"]
-        ]
-    )
+    st.markdown('<div class="sub-title">일간 종목별 가격변동</div>', unsafe_allow_html=True)
+    stock_df = pd.DataFrame([
+        {
+            "종목": stock,
+            "보유수량": fmt_int(latest["ending_qty"][stock]),
+            "당일종가": fmt_int(latest["close_prices"][stock]),
+            "일간등락률": pct(latest["stock_returns"][stock]),
+            "손익": fmt_int(latest["stock_pnl"][stock]),
+        }
+        for stock in latest["ending_qty"]
+    ])
     st.dataframe(stock_df, use_container_width=True, hide_index=True, height=df_height(stock_df))
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="section-box">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">마감</div>', unsafe_allow_html=True)
+    # ── 마감 섹션 ──
+    st.markdown('<div class="sec">', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">마감</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="subsection-title">전략별 MP수익률(이론값)</div>', unsafe_allow_html=True)
-    theo_df = pd.DataFrame(
-        [
-            {
-                "전략": name,
-                "일간": pct(latest["strategy_theoretical_ret"][name]),
-                "누적": pct(latest["strategy_theoretical_cum"][name]),
-            }
-            for name in STRATEGIES
-        ]
-    )
+    st.markdown('<div class="sub-title">전략별 MP 수익률 (이론값)</div>', unsafe_allow_html=True)
+    theo_df = pd.DataFrame([
+        {
+            "전략": name,
+            "일간": pct(latest["strategy_theoretical_ret"][name]),
+            "누적": pct(latest["strategy_theoretical_cum"][name]),
+        }
+        for name in STRATEGIES
+    ])
     st.dataframe(theo_df, use_container_width=True, hide_index=True, height=df_height(theo_df))
 
-    st.markdown('<div class="subsection-title">AP 잔고 리포팅</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-title">AP 잔고 리포팅</div>', unsafe_allow_html=True)
     ap_df = pd.DataFrame(latest["ap_rows"])
     st.dataframe(ap_df, use_container_width=True, hide_index=True, height=df_height(ap_df))
-    x1, x2, x3 = st.columns(3)
-    x4, x5, x6 = st.columns(3)
-    x1.metric("평가금액(SUM)", won(latest["ap_after"]))
-    x2.metric("AP 일간 손익", won(latest["ap_pnl"]))
-    x3.metric("AP 누적 손익", won(latest["ap_after"] - INITIAL_MONEY))
-    x4.metric("현금", won(latest["cash_after_trade"]))
-    x5.metric("AP 일간 수익률", pct(latest["ap_ret"]))
-    x6.metric("AP 누적 수익률", pct(latest["ap_cum"]))
+    c1, c2, c3 = st.columns(3)
+    c4, c5, c6 = st.columns(3)
+    c1.metric("평가금액(SUM)", won(latest["ap_after"]))
+    c2.metric("AP 일간 손익", won(latest["ap_pnl"]))
+    c3.metric("AP 누적 손익", won(latest["ap_after"] - INITIAL_MONEY))
+    c4.metric("현금", won(latest["cash_after_trade"]))
+    c5.metric("AP 일간 수익률", pct(latest["ap_ret"]))
+    c6.metric("AP 누적 수익률", pct(latest["ap_cum"]))
 
-    st.markdown('<div class="subsection-title">AP 잔고 전략별 분해</div>', unsafe_allow_html=True)
-    split_df = pd.DataFrame(
-        [
-            {
-                "전략": name,
-                "주식 평가금액": fmt_int(latest["strategy_eval"][name]),
-                "기여손익": fmt_int(latest["strategy_pnl"][name]),
-                "전략별 추정 수익률": pct(latest["strategy_est_ret"][name]),
-                "전략별 추정 누적 수익률": pct(latest["strategy_est_cum"][name]),
-            }
-            for name in STRATEGIES
-        ]
-    )
+    st.markdown('<div class="sub-title">AP 잔고 전략별 분해</div>', unsafe_allow_html=True)
+    split_df = pd.DataFrame([
+        {
+            "전략": name,
+            "주식 평가금액": fmt_int(latest["strategy_eval"][name]),
+            "기여손익": fmt_int(latest["strategy_pnl"][name]),
+            "추정 수익률": pct(latest["strategy_est_ret"][name]),
+            "추정 누적 수익률": pct(latest["strategy_est_cum"][name]),
+        }
+        for name in STRATEGIES
+    ])
     st.dataframe(split_df, use_container_width=True, hide_index=True, height=df_height(split_df))
     stock_eval_sum = sum(latest["strategy_eval"].values())
-    st.write("전략별 주식 평가금액 합계:", won(stock_eval_sum))
-    st.write("현금 (별도):", won(latest["cash_after_trade"]))
-    st.write("전략 주식합계 + 현금 =", won(stock_eval_sum + latest["cash_after_trade"]), "  /  AP 잔고:", won(latest["ap_after"]))
-    st.write("전략별 기여손익 합계:", won(sum(latest["strategy_pnl"].values())))
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # ── 하단: AP 수익률 라인 + 전략별 누적 기여 영역형 그래프 ──
-    st.markdown('<div class="subsection-title">AP 수익률 및 전략별 누적 기여 분해 (영역형)</div>', unsafe_allow_html=True)
-
-    # AP 누적수익률 라인 차트
-    ap_line_src = pd.DataFrame(
-        [
-            {"DAY": item["day_name"], "AP 누적수익률(%)": (item["ap_cum"] or 0) * 100}
-            for item in st.session_state.history
-        ]
+    st.markdown(f'<div class="note">전략별 주식 평가금액 합계: {won(stock_eval_sum)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="note">현금 (별도): {won(latest["cash_after_trade"])}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="note info">전략 주식합계 + 현금 = {won(stock_eval_sum + latest["cash_after_trade"])}'
+        f'&nbsp;&nbsp;/&nbsp;&nbsp;AP 잔고: {won(latest["ap_after"])}</div>',
+        unsafe_allow_html=True,
     )
-    day_order2 = ap_line_src["DAY"].tolist()
-    ap_line = (
+    st.markdown(f'<div class="note">전략별 기여손익 합계: {won(sum(latest["strategy_pnl"].values()))}</div>', unsafe_allow_html=True)
+
+    # ── 전략별 구성비 영역형 + AP 누적수익률 라인 ──
+    st.markdown('<div class="sub-title">AP 수익률 및 전략별 잔고 구성비</div>', unsafe_allow_html=True)
+
+    strategy_names = list(STRATEGIES.keys())
+    area_rows = []
+    ap_line_rows = []
+    day_order2 = [item["day_name"] for item in st.session_state.history]
+    for item in st.session_state.history:
+        ap_total = item["ap_after"]
+        ap_line_rows.append({"DAY": item["day_name"], "AP 누적수익률(%)": (item["ap_cum"] or 0) * 100})
+        for sname in strategy_names:
+            ratio = (item["strategy_eval"].get(sname, 0) / ap_total * 100) if ap_total else 0
+            area_rows.append({"DAY": item["day_name"], "구성": f"전략{sname}", "비율(%)": ratio})
+        cash_ratio = (item["cash_after_trade"] / ap_total * 100) if ap_total else 0
+        area_rows.append({"DAY": item["day_name"], "구성": "현금", "비율(%)": cash_ratio})
+
+    stack_order = [f"전략{n}" for n in strategy_names] + ["현금"]
+    area_src = pd.DataFrame(area_rows)
+    ap_line_src = pd.DataFrame(ap_line_rows)
+
+    area_chart = (
+        alt.Chart(area_src)
+        .mark_area(opacity=0.78)
+        .encode(
+            x=alt.X("DAY:N", title="DAY", sort=day_order2),
+            y=alt.Y("비율(%):Q", title="구성비율(%)", stack="normalize",
+                    axis=alt.Axis(format=".0%")),
+            color=alt.Color("구성:N", title="구성", sort=stack_order,
+                            scale=alt.Scale(scheme="tableau10")),
+            order=alt.Order("구성:N", sort="ascending"),
+            tooltip=["DAY", "구성", alt.Tooltip("비율(%):Q", format=".2f")],
+        )
+        .properties(height=240, title="전략별 AP 잔고 구성비 (주식 기준, 현금 별도)")
+    )
+    ap_line_chart = (
         alt.Chart(ap_line_src)
         .mark_line(point=True, color="#1d4ed8", strokeWidth=2)
         .encode(
@@ -671,46 +625,12 @@ if st.session_state.history:
             y=alt.Y("AP 누적수익률(%):Q", title="누적수익률(%)"),
             tooltip=["DAY", alt.Tooltip("AP 누적수익률(%):Q", format=".2f")],
         )
+        .properties(height=180, title="AP 누적수익률(%)")
     )
-
-    # 전략별 누적 기여 퍼센트 영역형
-    # 전략별 주식 평가금액 / AP 잔고 * 100 → 누적 비율 스택
-    strategy_names = list(STRATEGIES.keys())
-    area_rows = []
-    for item in st.session_state.history:
-        ap_total = item["ap_after"]
-        cash_val = item["cash_after_trade"]
-        for sname in strategy_names:
-            ratio = (item["strategy_eval"].get(sname, 0) / ap_total * 100) if ap_total else 0
-            area_rows.append({"DAY": item["day_name"], "전략": f"전략{sname}", "비율(%)": ratio})
-        # 현금 비율
-        cash_ratio = (cash_val / ap_total * 100) if ap_total else 0
-        area_rows.append({"DAY": item["day_name"], "전략": "현금", "비율(%)": cash_ratio})
-
-    area_src = pd.DataFrame(area_rows)
-    stack_order = [f"전략{n}" for n in strategy_names] + ["현금"]
-
-    area_chart = (
-        alt.Chart(area_src)
-        .mark_area(opacity=0.75)
-        .encode(
-            x=alt.X("DAY:N", title="DAY", sort=day_order2),
-            y=alt.Y("비율(%):Q", title="구성비율(%)", stack="normalize",
-                    axis=alt.Axis(format=".0%")),
-            color=alt.Color("전략:N", title="구성",
-                            sort=stack_order,
-                            scale=alt.Scale(scheme="tableau10")),
-            order=alt.Order("전략:N", sort="ascending"),
-            tooltip=["DAY", "전략", alt.Tooltip("비율(%):Q", format=".2f")],
-        )
-        .properties(height=260, title="전략별 AP 잔고 구성비 (주식 기준, 현금 별도)")
-    )
-
     st.altair_chart(area_chart, use_container_width=True)
-    st.altair_chart(
-        ap_line.properties(height=200, title="AP 누적수익률(%)"),
-        use_container_width=True,
-    )
+    st.altair_chart(ap_line_chart, use_container_width=True)
+
     st.markdown('</div>', unsafe_allow_html=True)
+
 else:
     st.info("전략별 초기 비중은 0%로 설정되어 있습니다. 비중을 입력하고 DAY 실행을 누르세요.")
