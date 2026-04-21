@@ -198,7 +198,10 @@ def color_pct_col(val: str) -> str:
 
 
 def style_df(df: pd.DataFrame, cols: list) -> object:
-    return df.style.applymap(color_pct_col, subset=cols)
+    try:
+        return df.style.map(color_pct_col, subset=cols)
+    except AttributeError:
+        return df.style.applymap(color_pct_col, subset=cols)
 
 
 def sec_header(title: str, color: str = "gray") -> None:
