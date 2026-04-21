@@ -243,12 +243,6 @@ def calc_snapshot_strategy_split(
             strategy_eval[strategy_name] += stock_eval * share
             strategy_pnl[strategy_name] += stock_pnl[stock] * share
 
-    total_weight = sum(weights.values())
-    if total_weight > 0:
-        for strategy_name in strategies:
-            cash_share = weights[strategy_name] / total_weight
-            strategy_eval[strategy_name] += cash_after_trade * cash_share
-
     strategy_est_ret: dict[str, float] = {}
     for strategy_name in strategies:
         base_value = strategy_eval[strategy_name] - strategy_pnl[strategy_name]
@@ -523,6 +517,52 @@ else:
     st.dataframe(mp_df, use_container_width=True, hide_index=True, height=df_height(mp_df))
     st.caption("비중 입력 후 DAY 실행 시 목표비중이 확정됩니다.")
 
+if st.session_state.history:
+    st.markdown('<div class="subsection-title">DAY 히스토리</div>', unsafe_allow_html=True)
+    _hist_df = pd.DataFrame(
+        [
+            {
+                "DAY": item["day_name"],
+                "A 비중": fmt_float(item["weights"].get("A", 0), 2),
+                "B 비중": fmt_float(item["weights"].get("B", 0), 2),
+                "C 비중": fmt_float(item["weights"].get("C", 0), 2),
+                "AP 일간 수익률": pct(item["ap_ret"]),
+                "AP 누적 수익률": pct(item["ap_cum"]),
+                "총자산": won(item["ap_after"]),
+            }
+            for item in st.session_state.history
+        ]
+    )
+    st.dataframe(_hist_df, use_container_width=True, hide_index=True, height=df_height(_hist_df))
+
+    st.markdown('<div class="subsection-title">누적수익률 그래프</div>', unsafe_allow_html=True)
+    _chart_source = pd.DataFrame(
+        [
+            {
+                "DAY": item["day_name"],
+                "AP 누적수익률": (item["ap_cum"] or 0) * 100,
+                "전략A 이론 누적수익률": (item["strategy_theoretical_cum"].get("A") or 0) * 100,
+                "전략B 이론 누적수익률": (item["strategy_theoretical_cum"].get("B") or 0) * 100,
+                "전략C 이론 누적수익률": (item["strategy_theoretical_cum"].get("C") or 0) * 100,
+            }
+            for item in st.session_state.history
+        ]
+    )
+    _chart_long = _chart_source.melt("DAY", var_name="구분", value_name="누적수익률(%)")
+    _day_order = _chart_source["DAY"].tolist()
+    _line_chart = (
+        alt.Chart(_chart_long)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("DAY:N", title="DAY", sort=_day_order),
+            y=alt.Y("누적수익률(%):Q", title="누적수익률(%)"),
+            color=alt.Color("구분:N", title="구분"),
+            tooltip=["DAY", "구분", alt.Tooltip("누적수익률(%):Q", format=".2f")],
+        )
+        .properties(height=280)
+    )
+    st.altair_chart(_line_chart, use_container_width=True)
+
 st.markdown('</div>', unsafe_allow_html=True)
 
 if st.session_state.history:
@@ -596,7 +636,7 @@ if st.session_state.history:
         [
             {
                 "전략": name,
-                "평가금액(현금포함)": fmt_int(latest["strategy_eval"][name]),
+                "주식 평가금액": fmt_int(latest["strategy_eval"][name]),
                 "기여손익": fmt_int(latest["strategy_pnl"][name]),
                 "전략별 추정 수익률": pct(latest["strategy_est_ret"][name]),
                 "전략별 추정 누적 수익률": pct(latest["strategy_est_cum"][name]),
@@ -605,53 +645,72 @@ if st.session_state.history:
         ]
     )
     st.dataframe(split_df, use_container_width=True, hide_index=True, height=df_height(split_df))
-    st.write("전략별 평가금액 합계:", won(sum(latest["strategy_eval"].values())))
+    stock_eval_sum = sum(latest["strategy_eval"].values())
+    st.write("전략별 주식 평가금액 합계:", won(stock_eval_sum))
+    st.write("현금 (별도):", won(latest["cash_after_trade"]))
+    st.write("전략 주식합계 + 현금 =", won(stock_eval_sum + latest["cash_after_trade"]), "  /  AP 잔고:", won(latest["ap_after"]))
     st.write("전략별 기여손익 합계:", won(sum(latest["strategy_pnl"].values())))
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="subsection-title">DAY 히스토리</div>', unsafe_allow_html=True)
-    hist_df = pd.DataFrame(
-        [
-            {
-                "DAY": item["day_name"],
-                "A 비중": fmt_float(item["weights"].get("A", 0), 2),
-                "B 비중": fmt_float(item["weights"].get("B", 0), 2),
-                "C 비중": fmt_float(item["weights"].get("C", 0), 2),
-                "AP 일간 수익률": pct(item["ap_ret"]),
-                "AP 누적 수익률": pct(item["ap_cum"]),
-                "총자산": won(item["ap_after"]),
-            }
-            for item in st.session_state.history
-        ]
-    )
-    st.dataframe(hist_df, use_container_width=True, hide_index=True, height=df_height(hist_df))
+    # ── 하단: AP 수익률 라인 + 전략별 누적 기여 영역형 그래프 ──
+    st.markdown('<div class="subsection-title">AP 수익률 및 전략별 누적 기여 분해 (영역형)</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="subsection-title">누적수익률 그래프</div>', unsafe_allow_html=True)
-    chart_source = pd.DataFrame(
+    # AP 누적수익률 라인 차트
+    ap_line_src = pd.DataFrame(
         [
-            {
-                "DAY": item["day_name"],
-                "AP 누적수익률": (item["ap_cum"] or 0) * 100,
-                "전략A 이론 누적수익률": (item["strategy_theoretical_cum"].get("A") or 0) * 100,
-                "전략B 이론 누적수익률": (item["strategy_theoretical_cum"].get("B") or 0) * 100,
-                "전략C 이론 누적수익률": (item["strategy_theoretical_cum"].get("C") or 0) * 100,
-            }
+            {"DAY": item["day_name"], "AP 누적수익률(%)": (item["ap_cum"] or 0) * 100}
             for item in st.session_state.history
         ]
     )
-    chart_long = chart_source.melt("DAY", var_name="구분", value_name="누적수익률(%)")
-    day_order = chart_source["DAY"].tolist()
-    line_chart = (
-        alt.Chart(chart_long)
-        .mark_line(point=True)
+    day_order2 = ap_line_src["DAY"].tolist()
+    ap_line = (
+        alt.Chart(ap_line_src)
+        .mark_line(point=True, color="#1d4ed8", strokeWidth=2)
         .encode(
-            x=alt.X("DAY:N", title="DAY", sort=day_order),
-            y=alt.Y("누적수익률(%):Q", title="누적수익률(%)"),
-            color=alt.Color("구분:N", title="구분"),
-            tooltip=["DAY", "구분", alt.Tooltip("누적수익률(%):Q", format=".2f")],
+            x=alt.X("DAY:N", title="DAY", sort=day_order2),
+            y=alt.Y("AP 누적수익률(%):Q", title="누적수익률(%)"),
+            tooltip=["DAY", alt.Tooltip("AP 누적수익률(%):Q", format=".2f")],
         )
-        .properties(height=320)
     )
-    st.altair_chart(line_chart, use_container_width=True)
+
+    # 전략별 누적 기여 퍼센트 영역형
+    # 전략별 주식 평가금액 / AP 잔고 * 100 → 누적 비율 스택
+    strategy_names = list(STRATEGIES.keys())
+    area_rows = []
+    for item in st.session_state.history:
+        ap_total = item["ap_after"]
+        cash_val = item["cash_after_trade"]
+        for sname in strategy_names:
+            ratio = (item["strategy_eval"].get(sname, 0) / ap_total * 100) if ap_total else 0
+            area_rows.append({"DAY": item["day_name"], "전략": f"전략{sname}", "비율(%)": ratio})
+        # 현금 비율
+        cash_ratio = (cash_val / ap_total * 100) if ap_total else 0
+        area_rows.append({"DAY": item["day_name"], "전략": "현금", "비율(%)": cash_ratio})
+
+    area_src = pd.DataFrame(area_rows)
+    stack_order = [f"전략{n}" for n in strategy_names] + ["현금"]
+
+    area_chart = (
+        alt.Chart(area_src)
+        .mark_area(opacity=0.75)
+        .encode(
+            x=alt.X("DAY:N", title="DAY", sort=day_order2),
+            y=alt.Y("비율(%):Q", title="구성비율(%)", stack="normalize",
+                    axis=alt.Axis(format=".0%")),
+            color=alt.Color("전략:N", title="구성",
+                            sort=stack_order,
+                            scale=alt.Scale(scheme="tableau10")),
+            order=alt.Order("전략:N", sort="ascending"),
+            tooltip=["DAY", "전략", alt.Tooltip("비율(%):Q", format=".2f")],
+        )
+        .properties(height=260, title="전략별 AP 잔고 구성비 (주식 기준, 현금 별도)")
+    )
+
+    st.altair_chart(area_chart, use_container_width=True)
+    st.altair_chart(
+        ap_line.properties(height=200, title="AP 누적수익률(%)"),
+        use_container_width=True,
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.info("전략별 초기 비중은 0%로 설정되어 있습니다. 비중을 입력하고 DAY 실행을 누르세요.")
