@@ -737,99 +737,83 @@ if st.session_state.history:
     ).encode(y="y:Q")
     st.altair_chart(contrib_chart + zero_line, use_container_width=True)
 
-    # ── 손익 귀인 분석 ──
+    # ── 전략별 손익 인식 ──
     st.divider()
-    sec_header("손익 귀인 분석", "gray")
-    st.caption("종목별 손익이 각 전략에 얼마나 귀속되는지 분해합니다.")
+    sec_header("전략별 손익 인식", "gray")
+    st.caption(f"최신 DAY({latest['day_name']}) 기준 — 종목별 손익이 각 전략에 귀속되는 비율과 금액을 분해합니다.")
 
-    # 최신 DAY 기준 귀인 분석
+    # contrib_map: {종목: {전략: 기여비중}} — run_day와 동일한 build_contrib 사용
     contrib_map = build_contrib(latest["weights"], STRATEGIES)
-    attrib_rows = []
+
+    # attrib_data: 숫자값 보존 (문자열 변환 없이)
+    attrib_data: list[dict] = []
     for stock in latest["ending_qty"]:
-        stock_pnl_val = latest["stock_pnl"].get(stock, 0)
+        stock_pnl_val = latest["stock_pnl"].get(stock, 0)   # run_day의 stock_pnl과 동일
         total_c = sum(contrib_map.get(stock, {}).values())
         for sname in strategy_names:
             c = contrib_map.get(stock, {}).get(sname, 0)
             share = c / total_c if total_c > 0 else 0
-            attrib_rows.append({
+            if share == 0:
+                continue
+            attrib_data.append({
                 "전략": f"전략{sname}",
                 "종목": stock,
-                "귀속비율": f"{share*100:.1f}%",
-                "종목손익(원)": fmt_int(stock_pnl_val),
-                "전략귀속손익(원)": fmt_int(stock_pnl_val * share),
+                "_mp_share": share,              # 숫자 원본 보존
+                "_stock_pnl": stock_pnl_val,     # 숫자 원본 보존
+                "_attrib_pnl": stock_pnl_val * share,  # 숫자 원본 보존
             })
-    attrib_df = pd.DataFrame(attrib_rows)
-    # 전략귀속손익이 0인 행 제거
-    attrib_df = attrib_df[attrib_df["귀속비율"] != "0.0%"].reset_index(drop=True)
+
+    # 표시용 DataFrame — 컬럼 순서: 종목/전략/MP점유율/종목손익/전략인식손익
+    attrib_display = pd.DataFrame([
+        {
+            "종목": d["종목"],
+            "전략": d["전략"],
+            "MP점유율": f"{d['_mp_share']*100:.1f}%",
+            "종목손익": fmt_int(d["_stock_pnl"]),
+            "전략인식손익": fmt_int(d["_attrib_pnl"]),
+        }
+        for d in attrib_data
+    ])
     st.dataframe(
-        style_df(attrib_df, ["전략귀속손익(원)"]),
-        use_container_width=True, hide_index=True, height=min(df_height(attrib_df), 450),
+        style_df(attrib_display, ["전략인식손익", "종목손익"]),
+        use_container_width=True, hide_index=True,
+        height=df_height(attrib_display),   # 스크롤 없이 전체 표시
     )
 
-    # 전략별 귀인 합계
-    sub_header("전략별 귀인손익 합계 (최신 DAY 기준)")
-    attrib_sum_rows = []
+    # ── 전략별 손익 인식률 ──
+    sub_header("전략별 손익 인식률")
+
+    # DAY t-1 잔고: latest 바로 이전 히스토리 or INITIAL_MONEY
+    hist = st.session_state.history
+    prev_ap = hist[-2]["ap_after"] if len(hist) >= 2 else INITIAL_MONEY
+
+    sum_rows = []
     for sname in strategy_names:
-        rows_s = [r for r in attrib_rows if r["전략"] == f"전략{sname}"]
-        total_attr = sum(
-            float(r["전략귀속손익(원)"].replace(",", ""))
-            for r in rows_s
-        )
-        attrib_sum_rows.append({
+        # 인식손익 합계 — attrib_data 숫자값 직접 합산 (문자열 파싱 없음)
+        recog_pnl = sum(d["_attrib_pnl"] for d in attrib_data if d["전략"] == f"전략{sname}")
+        # DAY t 잔고: strategy_eval[sname] (주식 평가금액, 현금 미포함)
+        day_t = latest["strategy_eval"].get(sname, 0)
+        # DAY t-1 잔고: 전 DAY의 strategy_eval, 없으면 초기 비중 비례
+        if len(hist) >= 2:
+            day_t1 = hist[-2]["strategy_eval"].get(sname, 0)
+        else:
+            day_t1 = INITIAL_MONEY * (latest["weights"].get(sname, 0) / 100)
+        # 추정수익률 = 인식손익 / (DAY t 잔고 - 인식손익)  → strategy_est_ret와 동일 산식
+        base = day_t - recog_pnl
+        est_ret = recog_pnl / base if base != 0 else 0.0
+        sum_rows.append({
             "전략": f"전략{sname}",
-            "귀인손익 합계(원)": fmt_int(total_attr),
-            "기여손익(전략분해)": fmt_int(latest["strategy_pnl"].get(sname, 0)),
+            "인식손익 합계": fmt_int(recog_pnl),
+            f"DAY t-1 잔고": fmt_int(day_t1),
+            f"DAY t 잔고": fmt_int(day_t),
+            "추정수익률": pct(est_ret),
         })
-    attrib_sum_df = pd.DataFrame(attrib_sum_rows)
-    st.dataframe(
-        style_df(attrib_sum_df, ["귀인손익 합계(원)", "기여손익(전략분해)"]),
-        use_container_width=True, hide_index=True, height=df_height(attrib_sum_df),
-    )
 
-    # 귀인손익 히트맵 (종목 × 전략)
-    sub_header("종목 × 전략 귀인손익 히트맵")
-    heatmap_rows = []
-    for stock in latest["ending_qty"]:
-        stock_pnl_val = latest["stock_pnl"].get(stock, 0)
-        total_c = sum(contrib_map.get(stock, {}).values())
-        for sname in strategy_names:
-            c = contrib_map.get(stock, {}).get(sname, 0)
-            share = c / total_c if total_c > 0 else 0
-            heatmap_rows.append({
-                "종목": stock,
-                "전략": f"전략{sname}",
-                "귀속손익": stock_pnl_val * share,
-            })
-    heatmap_src = pd.DataFrame(heatmap_rows)
-    heatmap = (
-        alt.Chart(heatmap_src)
-        .mark_rect()
-        .encode(
-            x=alt.X("전략:N", title="전략"),
-            y=alt.Y("종목:N", title="종목"),
-            color=alt.Color(
-                "귀속손익:Q", title="귀속손익(원)",
-                scale=alt.Scale(scheme="redblue", domainMid=0),
-            ),
-            tooltip=["종목", "전략", alt.Tooltip("귀속손익:Q", format=",.0f", title="귀속손익(원)")],
-        )
-        .properties(height=320, title="종목 × 전략 귀인손익 (최신 DAY, 파랑=수익 / 빨강=손실)")
+    sum_df = pd.DataFrame(sum_rows)
+    st.dataframe(
+        style_df(sum_df, ["인식손익 합계", "추정수익률"]),
+        use_container_width=True, hide_index=True, height=df_height(sum_df),
     )
-    text_layer = (
-        alt.Chart(heatmap_src)
-        .mark_text(fontSize=11)
-        .encode(
-            x=alt.X("전략:N"),
-            y=alt.Y("종목:N"),
-            text=alt.Text("귀속손익:Q", format=",.0f"),
-            color=alt.condition(
-                "datum.귀속손익 > 0",
-                alt.value("#0c4a6e"),
-                alt.value("#7f1d1d"),
-            ),
-        )
-    )
-    st.altair_chart(heatmap + text_layer, use_container_width=True)
 
 else:
     st.info("전략별 초기 비중은 0%로 설정되어 있습니다. 비중을 입력하고 DAY 실행을 누르세요.")
