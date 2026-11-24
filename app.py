@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from ui import tab_mix, tab_overview, theme
+from ui import tab_mix, tab_orders, tab_overview, theme
 
 st.set_page_config(page_title="멀티자문형 랩 시뮬레이터", layout="wide")
 theme.inject_css()
@@ -22,6 +22,8 @@ with tabs[0]:
     tab_overview.render()
 with tabs[1]:
     tab_mix.render(show_calc)
-for tab, name in zip(tabs[2:], TABS[2:]):
+with tabs[2]:
+    tab_orders.render(show_calc)
+for tab, name in zip(tabs[3:], TABS[3:]):
     with tab:
         tab_overview.render_placeholder(name)

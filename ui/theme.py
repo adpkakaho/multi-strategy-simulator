@@ -69,6 +69,9 @@ table.tb td { padding:7px 10px; border-bottom:1px solid var(--line2); vertical-a
 table.tb tr.total td { border-top:1px solid var(--ink); border-bottom:1.5px solid var(--ink); background:#fafafa; font-weight:600; }
 table.tb .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
 table.tb .muted { color:var(--ink3); }
+table.tb .small { font-size:12.5px; line-height:1.6; }
+table.tb .neg { color:#b3261e; font-weight:600; }
+.card .row.sum { border-bottom:none; border-top:1px solid var(--ink); font-weight:700; margin-top:2px; }
 .tbwrap { overflow-x:auto; }
 
 .box { background:var(--sand100); border-radius:12px; padding:16px 22px; margin:10px 0 16px; font-size:13.5px; line-height:1.7; }

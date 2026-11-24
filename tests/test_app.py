@@ -40,3 +40,29 @@ def test_calc_toggle_off_still_renders():
     at.toggle[0].set_value(False)
     at = at.run()
     assert not at.exception
+
+
+def test_orders_tab_reproduces_doc_4_2():
+    at = AppTest.from_file(APP, default_timeout=60).run()
+    assert not at.exception
+    result = at.session_state.order_result["result"]
+    assert result.account_cash == 534_000
+    assert result.books["A"].qty["삼성전자"] == 172 and result.books["B"].qty["삼성전자"] == 99
+    assert "534,000원" in [m.value for m in at.metric]
+
+
+def test_orders_tab_waits_for_valid_mix():
+    at = AppTest.from_file(APP, default_timeout=60).run()
+    weight_inputs(at)[0].set_value(80)  # 합계 140% → 믹스 단계에서 막힘
+    at = at.run()
+    assert not at.exception
+    assert at.session_state.order_result is None
+    assert any("1 믹스" in i.value for i in at.info)
+
+
+def test_orders_tab_capital_change():
+    at = AppTest.from_file(APP, default_timeout=60).run()
+    next(w for w in at.number_input if "가입금액" in w.label).set_value(30_000_000)
+    at = at.run()
+    assert not at.exception
+    assert at.session_state.order_result["result"].capital == 30_000_000

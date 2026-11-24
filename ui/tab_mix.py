@@ -161,6 +161,7 @@ def render(show_calc: bool) -> None:
     init_state()
     cards = st.session_state.cards
     nonce = st.session_state.mix_nonce
+    st.session_state.mix_result = None  # 입력이 유효할 때만 아래에서 채운다
 
     theme.section(
         "STEP 1 ㅣ MP 등록 → 믹스",
@@ -204,7 +205,10 @@ def render(show_calc: bool) -> None:
     contrib = contributions(weights, card_holdings)
     mp = blend(contrib)
     shared = shared_stocks(contrib)
-    st.session_state.mix_result = {"weights": weights, "contrib": contrib, "mp": mp}  # 다음 단계(주문·귀속)의 입력
+    st.session_state.mix_result = {
+        "weights": weights, "contrib": contrib, "mp": mp,
+        "cards": [{"id": c["id"], "name": c["name"], "advisor": c["advisor"]} for c in cards],
+    }  # 다음 단계(주문·귀속)의 입력
 
     # ── 고객에게 보이는 것 ──
     theme.h3("합성 MP ㅣ 고객에게 보이는 조합 결과")

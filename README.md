@@ -5,7 +5,7 @@ Streamlit 앱입니다. 탭마다 위쪽은 고객에게 보이는 화면, 아�
 
 > 화면의 종목·비중·가격은 산식 설명을 위한 가상 예시이며 실제 시세·추천과 무관합니다.
 
-현재 구현된 단계는 **1 믹스(합성 MP)** 입니다. 나머지 탭은 자리만 잡혀 있습니다.
+현재 구현된 단계는 **1 믹스(합성 MP)** 와 **2 주문·귀속** 입니다. 나머지 탭은 자리만 잡혀 있습니다.
 
 ## 실행
 
@@ -23,7 +23,9 @@ app.py                          # 탭 프레임 (개요 / 1 믹스 / 2 주문·�
 ui/theme.py                     # 공통 스타일 (구축방안 문서의 흑백 톤)
 ui/tab_overview.py              # 개요 탭, 미구현 탭 안내
 ui/tab_mix.py                   # 1 믹스 탭
+ui/tab_orders.py                # 2 주문·귀속 탭
 simulator/mix.py                # 합성 MP 계산 (구축방안 4.1)
+simulator/orders.py             # 계좌 주문과 전략별 귀속수량·현금 (구축방안 4.2)
 simulator/scenario.py           # 구축방안 4장의 가상 예시 데이터
 simulator/engine.py             # 초기 기획(사후 비례배분) 시뮬레이터의 계산 엔진
 pages/legacy_day_simulator.py   # 초기 기획 시뮬레이터 화면 (비교용으로 보존)
