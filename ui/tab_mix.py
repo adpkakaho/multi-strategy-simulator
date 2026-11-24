@@ -90,36 +90,49 @@ def card_html(card: dict, weight: float) -> str:
 def chart(contrib: dict, mp: dict, cards: list[dict]) -> alt.LayerChart:
     label = {card["id"]: f"{card['id']} {card['name']}" for card in cards}
     order = list(mp.keys())
-    rows = [
-        {"종목": stock, "전략": label[cid], "순서": i, "기여도": value, "합성비중": mp[stock]}
-        for stock in order
-        for i, (cid, value) in enumerate((c["id"], contrib[stock].get(c["id"], 0)) for c in cards)
-        if value > 0
-    ]
+    rows = []
+    for stock in order:
+        start = 0.0
+        for card in cards:
+            value = contrib[stock].get(card["id"], 0)
+            if value > 0:
+                rows.append({"종목": stock, "전략": label[card["id"]], "기호": card["id"], "x0": start, "x1": start + value,
+                             "mid": start + value / 2, "기여도": value, "합성비중": mp[stock]})
+                start += value
+    data = pd.DataFrame(rows)
     active = [card for card in cards if any(card["id"] in contrib[s] for s in contrib)]
+    y = alt.Y("종목:N", sort=order, title=None,
+              axis=alt.Axis(labelFontSize=13, labelColor=theme.INK, ticks=False, domain=False, labelPadding=8))
     bars = (
-        alt.Chart(pd.DataFrame(rows))
-        .mark_bar(height=18, stroke="#ffffff", strokeWidth=2, cornerRadius=3)
+        alt.Chart(data)
+        .mark_bar(height=20, stroke="#ffffff", strokeWidth=2, cornerRadius=3)
         .encode(
-            y=alt.Y("종목:N", sort=order, title=None, axis=alt.Axis(labelFontSize=13, labelColor=theme.INK, ticks=False, domain=False, labelPadding=8)),
-            x=alt.X("기여도:Q", stack="zero", title="합성 목표비중(%)",
-                    axis=alt.Axis(grid=True, gridColor="#ececec", tickMinStep=5, tickCount=6, domain=False, ticks=False, labelColor=theme.INK3, titleColor=theme.INK3, titleFontWeight="normal")),
+            y=y,
+            x=alt.X("x0:Q", title="합성 목표비중(%)",
+                    axis=alt.Axis(grid=True, gridColor=theme.GRAY_100, tickMinStep=5, tickCount=6, domain=False, ticks=False,
+                                  labelColor=theme.GRAY_400, titleColor=theme.GRAY_500, titleFontWeight="normal")),
+            x2="x1:Q",
             color=alt.Color(
                 "전략:N",
                 scale=alt.Scale(domain=[label[c["id"]] for c in active], range=[color_of(c["id"]) for c in active]),
                 legend=alt.Legend(orient="top", title=None, labelFontSize=12.5, labelColor=theme.INK, symbolType="square"),
             ),
-            order=alt.Order("순서:Q"),
             tooltip=[alt.Tooltip("종목:N"), alt.Tooltip("전략:N"), alt.Tooltip("기여도:Q", format=".2f", title="기여도(%)"),
                      alt.Tooltip("합성비중:Q", format=".2f", title="합성 목표비중(%)")],
         )
+    )
+    # 조각이 충분히 넓을 때만 전략 기호를 넣는다
+    inside = (
+        alt.Chart(data[data["기여도"] >= max(mp.values()) * 0.06])
+        .mark_text(fontSize=11.5, fontWeight=700, color="#ffffff")
+        .encode(y=alt.Y("종목:N", sort=order), x=alt.X("mid:Q"), text="기호:N")
     )
     totals = (
         alt.Chart(pd.DataFrame({"종목": order, "합성비중": [mp[s] for s in order], "표시": [pct(mp[s]) for s in order]}))
         .mark_text(align="left", dx=6, fontSize=12.5, fontWeight=600, color=theme.INK)
         .encode(y=alt.Y("종목:N", sort=order), x=alt.X("합성비중:Q"), text="표시:N")
     )
-    return (bars + totals).properties(height=max(120, 34 * len(order) + 40)).configure_view(stroke=None)
+    return (bars + inside + totals).properties(height=max(120, 34 * len(order) + 40)).configure_view(stroke=None)
 
 
 def formula_table(contrib: dict, mp: dict, cards: list[dict], weights: dict) -> str:

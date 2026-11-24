@@ -32,7 +32,7 @@ def render() -> None:
     theme.h3("탭 구성과 구현 상태")
     rows = "".join(
         f"<tr><td><b>{escape(name)}</b></td><td>{escape(what)}</td><td>{escape(ref)}</td>"
-        f'<td><span class="pill {"fill" if done else "dim"}">{"구현" if done else "예정"}</span></td></tr>'
+        f'<td><span class="pill {"teal" if done else "dim"}">{"구현" if done else "예정"}</span></td></tr>'
         for name, what, ref, done in STEPS
     )
     theme.html(
